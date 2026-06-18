@@ -1,0 +1,1 @@
+print("WeatherWatch Initialized")
