@@ -1,35 +1,157 @@
 from pathlib import Path
-from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
+
+
+CARD_SIZE = (1080, 1350)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+OVERLAY_PATH = BASE_DIR / "assets" / "overlays" / "NLWW_overlay.png"
+FONT_PATH = BASE_DIR / "assets" / "fonts" / "BebasNeue-Regular.otf"
+SOURCE_FONT_PATH = BASE_DIR / "assets" / "fonts" / "Arial Narrow.ttf"
+
+CREAM = (245, 239, 217)
+
+
+def wrap_text_by_pixels(draw, text, font, max_width):
+    words = text.upper().split()
+    lines = []
+    current = ""
+
+    for word in words:
+        test_line = f"{current} {word}".strip()
+        bbox = draw.textbbox((0, 0), test_line, font=font)
+        width = bbox[2] - bbox[0]
+
+        if width <= max_width:
+            current = test_line
+        else:
+            if current:
+                lines.append(current)
+            current = word
+
+    if current:
+        lines.append(current)
+
+    return "\n".join(lines)
+
+
+def fit_font(
+    draw,
+    text,
+    font_path,
+    max_width,
+    max_height,
+    start_size=78,
+    min_size=44,
+    max_lines=3,
+):
+    font_size = start_size
+
+    while font_size >= min_size:
+        font = ImageFont.truetype(str(font_path), font_size)
+        wrapped = wrap_text_by_pixels(draw, text, font, max_width)
+        lines = wrapped.splitlines()
+
+        if len(lines) > max_lines:
+            font_size -= 2
+            continue
+
+        bbox = draw.multiline_textbbox(
+            (0, 0),
+            wrapped,
+            font=font,
+            spacing=12,
+            align="center",
+        )
+
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        if text_width <= max_width and text_height <= max_height:
+            return font, wrapped
+
+        font_size -= 2
+
+    font = ImageFont.truetype(str(font_path), min_size)
+    return font, wrap_text_by_pixels(draw, text, font, max_width)
+
+
+def draw_centered_multiline(draw, text, font, y, fill, spacing=12):
+    bbox = draw.multiline_textbbox(
+        (0, 0),
+        text,
+        font=font,
+        spacing=spacing,
+        align="center",
+    )
+    text_width = bbox[2] - bbox[0]
+    x = (CARD_SIZE[0] - text_width) // 2
+
+    draw.multiline_text(
+        (x, y),
+        text,
+        font=font,
+        fill=fill,
+        spacing=spacing,
+        align="center",
+    )
+
+
+def draw_right_text(draw, text, y, right_margin=40, fill=CREAM, font=None):
+    font = font or ImageFont.load_default()
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_width = bbox[2] - bbox[0]
+    x = CARD_SIZE[0] - right_margin - text_width
+    draw.text((x, y), text, font=font, fill=fill)
 
 
 def compose_weather_card(
     input_path: str,
     output_path: str,
-    title: str = "WEATHERWATCH",
-    subtitle: str = "NORTH LUZON UPDATE",
-    source: str = "Source: Panahon.gov.ph",
+    headline: str,
+    source: str = "Data: Meteoblue",
+    overlay_path: str | Path = OVERLAY_PATH,
 ):
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    img = Image.open(input_path).convert("RGB")
-    img = img.resize((1080, 1350))
+    base = Image.open(input_path).convert("RGBA")
+    base = base.resize(CARD_SIZE)
 
-    draw = ImageDraw.Draw(img)
+    overlay = Image.open(overlay_path).convert("RGBA")
+    overlay = overlay.resize(CARD_SIZE)
 
-    # top dark overlay
-    draw.rectangle((0, 0, 1080, 160), fill=(0, 0, 0))
+    final = Image.alpha_composite(base, overlay)
+    draw = ImageDraw.Draw(final)
 
-    # bottom dark overlay
-    draw.rectangle((0, 1230, 1080, 1350), fill=(0, 0, 0))
+    headline_font, headline_text = fit_font(
+        draw=draw,
+        text=headline,
+        font_path=FONT_PATH,
+        max_width=860,
+        max_height=215,
+        start_size=72,
+        min_size=42,
+        max_lines=3,
+    )
 
-    # texts
-    draw.text((40, 35), title, fill="white")
-    draw.text((40, 85), subtitle, fill="white")
+    draw_centered_multiline(
+        draw=draw,
+        text=headline_text,
+        font=headline_font,
+        y=42,
+        fill=CREAM,
+        spacing=12,
+    )
 
-    timestamp = datetime.now().strftime("%B %d, %Y • %I:%M %p")
-    draw.text((40, 1250), timestamp, fill="white")
-    draw.text((40, 1290), source, fill="white")
+    source_font = ImageFont.truetype(str(SOURCE_FONT_PATH), 24)
+    draw_right_text(
+        draw=draw,
+        text=source,
+        font=source_font,
+        y=1288,
+        right_margin=40,
+        fill=CREAM,
+    )
 
-    img.save(output_path)
+    final.convert("RGB").save(output_path, quality=95)
     return output_path

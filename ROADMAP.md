@@ -13,6 +13,7 @@ Phase 3
 
 Phase 4
 □ Region Plugin System
+content type
 
 Phase 5
 □ Telegram Approval

@@ -15,9 +15,8 @@ class WeatherWatch:
                     "url": provider["url"],
                     "raw_output_path": f"output/{provider['name']}_raw.png",
                     "final_output_path": f"output/{provider['name']}_final.png",
-                    "title": "WEATHERWATCH",
-                    "subtitle": "NORTH LUZON WEATHER UPDATE",
-                    "source": f"Source: {provider['name']}",
+                    "headline": "MAINIT AT MAALINSANGANG PANAHON, MAY PAMINSAN-MINSANG PAG-ULAN",
+                    "source": f"DATA: {provider['display_name']} | {provider['shorten_url']}",
                 }
 
                 run_capture_job(job)
