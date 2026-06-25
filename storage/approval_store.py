@@ -41,7 +41,11 @@ def create_current_job(job):
         "provider": job.get("provider"),
         "source": job.get("source"),
         "headline": job.get("headline"),
-        "caption": job.get("caption", "General weather update ready for review."),
+        "captions": job.get("captions", {}),
+        "caption": job.get("captions", {}).get(
+            "facebook",
+            job.get("caption", "")
+        ),
         "image": job.get("final_output_path"),
         "raw_image": job.get("raw_output_path"),
     }
@@ -85,13 +89,15 @@ def reject_current_job():
     return True
 
 
-def modify_current_caption(new_caption):
+def update_current_job(fields):
     state = load_state()
 
     if not state.get("current"):
         return None
 
-    state["current"]["caption"] = new_caption
+    for key, value in fields.items():
+        state["current"][key] = value
+
     state["current"]["status"] = "modified"
     state["current"]["modified_at"] = datetime.now().isoformat(timespec="seconds")
 

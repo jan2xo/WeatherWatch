@@ -1,0 +1,128 @@
+def format_storm_label(storm):
+    return f"{storm['category']} {storm['hashtag']}"
+
+
+def format_storm_detail(storm):
+    label = format_storm_label(storm)
+
+    if storm.get("distance_km") and storm.get("location"):
+        return f"{label} na nasa {storm['distance_km']} km {storm['location']}"
+
+    return label
+
+
+def join_filipino(items):
+    if len(items) == 0:
+        return ""
+
+    if len(items) == 1:
+        return items[0]
+
+    if len(items) == 2:
+        return f"{items[0]} at {items[1]}"
+
+    return f"{', '.join(items[:-1])}, at {items[-1]}"
+
+
+def build_graphic_headline(job):
+    forecast = job.get("forecast", {})
+    storms = forecast.get("storms", [])
+
+    if forecast.get("has_storms"):
+
+        if len(storms) >= 2:
+            return "DALAWANG BAGYO,\nPATULOY NA BINABANTAYAN"
+
+        storm = storms[0]
+
+        return f"{storm['name']}\nPATULOY NA BINABANTAYAN"
+
+    if forecast.get("habagat"):
+        return "HABAGAT\nNAKAAAPEKTO SA LUZON"
+
+    return job.get(
+        "headline",
+        "MAINIT AT MAALINSANGANG PANAHON,\nMAY PAMINSAN-MINSANG PAG-ULAN",
+    )
+
+
+def build_facebook_caption(job):
+    source = job.get("source", "")
+    headline = job.get("headline", "WEATHER UPDATE")
+    forecast = job.get("forecast", {})
+    storms = forecast.get("storms", [])
+    bulletin_lines = forecast.get("bulletin_lines", [])
+
+    if forecast.get("has_storms"):
+
+        storm_details = join_filipino([
+            format_storm_detail(storm)
+            for storm in storms
+        ])
+
+        opener = (
+            "🌀 DALAWANG BAGYO, PATULOY NA BINABANTAYAN!"
+            if len(storms) >= 2
+            else f"🌀 {format_storm_label(storms[0])}, PATULOY NA BINABANTAYAN!"
+        )
+
+        bulletin = ""
+
+        if bulletin_lines:
+            bulletin = "\n\n" + "\n".join(bulletin_lines)
+
+        return (
+            f"{opener}\n\n"
+            f"UPDATE: Patuloy na mino-monitor ang {storm_details} batay sa pinakahuling datos ng PAGASA."
+            f"{bulletin}\n\n"
+            f"{source}\n\n"
+            "#WeatherWatch #NorthLuzonWeatherWatch"
+        )
+
+    if bulletin_lines:
+
+        return (
+            f"📡 {headline}\n\n"
+            "UPDATE:\n"
+            f"{chr(10).join(bulletin_lines)}\n\n"
+            f"{source}\n\n"
+            "#WeatherWatch #NorthLuzonWeatherWatch"
+        )
+
+    return (
+        f"📡 {headline}\n\n"
+        "UPDATE: Patuloy nating mino-monitor ang lagay ng panahon sa North Luzon.\n\n"
+        f"{source}\n\n"
+        "#WeatherWatch #NorthLuzonWeatherWatch"
+    )
+
+
+def build_captions(job):
+    facebook_caption = build_facebook_caption(job)
+
+    telegram_caption = (
+        "🤖 <b>WEATHERWATCH GENERATED UPDATE</b>\n\n"
+        "Status: <b>Pending Approval</b>\n"
+        f"Provider: <b>{job.get('provider')}</b>\n\n"
+        f"<b>Facebook Caption Preview:</b>\n{facebook_caption}"
+    )
+
+    return {
+        "telegram": telegram_caption,
+        "facebook": facebook_caption,
+        "instagram": facebook_caption,
+    }
+
+
+def build_telegram_review_caption(job, current_job):
+    return (
+        f"{job['captions']['telegram']}\n\n"
+        f"🆔 Job ID: <code>{current_job['job_id']}</code>\n"
+        f"Status: <b>{current_job['status']}</b>\n\n"
+        "<b>Commands:</b>\n"
+        "/approve\n"
+        "/reject\n"
+        "/modify\n"
+        "HEADLINE: ...\n"
+        "CAPTION: ..."
+    )

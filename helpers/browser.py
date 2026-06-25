@@ -6,7 +6,7 @@ def capture_page(url, output_path):
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
 
         page = browser.new_page(
             viewport={"width": 1080, "height": 1350},

@@ -1,11 +1,10 @@
 from plugins.sources.registry import get_providers
-from services.capture_services import run_capture_job
-from services.image_services import run_image_job
-from services.telegram_services import run_telegram_job
+from pipelines.weather_pipeline import run_weather_pipeline
 
 
 class WeatherWatch:
-    def run(self):
+
+    def update(self):
         providers = get_providers()
 
         for provider in providers:
@@ -18,19 +17,20 @@ class WeatherWatch:
                     "final_output_path": f"output/{provider['name']}_final.png",
                     "headline": "MAINIT AT MAALINSANGANG PANAHON, MAY PAMINSAN-MINSANG PAG-ULAN",
                     "source": f"DATA: {provider['display_name']} | {provider['shorten_url']}",
+                    "forecast_text": (
+                                        'At 3:00 PM today, the center of Severe Tropical Storm "FRANCISCO" '
+                                        '{MEKKHALA} was estimated based on all available data at 620 km '
+                                        'Northeast of Itbayat, Batanes. Meanwhile, the center of Tropical '
+                                        'Storm "GARDO" {HIGOS} was estimated based on all available data at '
+                                        '1,420 km East of Extreme Northern Luzon. Southwest Monsoon affecting '
+                                        'Luzon and Visayas.'
+                                        ),
                 }
 
-                run_capture_job(job)
-                run_image_job(job)
-                job["caption"] = (
-                                    "📡 <b>NORTH LUZON WEATHER WATCH</b>\n\n"
-                                    "General weather update ready for review.\n\n"
-                                 f"{job['source']}"
-                                    )
-                run_telegram_job(job)
+                run_weather_pipeline(job)
 
-                print(f"Generated from {provider['name']}: {job['final_output_path']}")
-                break
+                print(f"Queued for approval: {job['final_output_path']}")
+                return
 
             except Exception as error:
                 print(f"Provider failed: {provider['name']} → {error}")

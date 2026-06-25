@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def run_telegram_job(job):
+def get_telegram_config():
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -16,6 +16,33 @@ def run_telegram_job(job):
 
     if not chat_id:
         raise ValueError("Missing TELEGRAM_CHAT_ID in .env")
+
+    return bot_token, chat_id
+
+
+def send_telegram_message(text: str):
+    bot_token, chat_id = get_telegram_config()
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+    response = requests.post(
+        url,
+        data={
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+        },
+        timeout=30,
+    )
+
+    if not response.ok:
+        raise RuntimeError(f"Telegram message failed: {response.text}")
+
+    return response.json()
+
+
+def run_telegram_job(job):
+    bot_token, chat_id = get_telegram_config()
 
     image_path = Path(job["final_output_path"])
 

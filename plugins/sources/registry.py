@@ -6,7 +6,6 @@ from plugins.sources.meteoblue import PROVIDER as METEOBLUE
 
 
 PROVIDERS = [
-    PANAHON,
     WINDY,
 ]
 
