@@ -1,7 +1,11 @@
+anyio==4.14.1
 certifi==2026.6.17
 charset-normalizer==3.4.7
 decorator==5.3.1
 greenlet==3.5.2
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
 idna==3.18
 ImageIO==2.37.3
 imageio-ffmpeg==0.6.0
@@ -12,6 +16,7 @@ playwright==1.60.0
 proglog==0.1.12
 pyee==13.0.1
 python-dotenv==1.2.2
+python-telegram-bot==22.8
 requests==2.34.2
 tqdm==4.68.3
 typing_extensions==4.15.0

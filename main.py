@@ -1,5 +1,4 @@
-from core.app import WeatherWatch
+from core.service import WeatherWatchService
 
-
-app = WeatherWatch()
-app.run()
+if __name__ == "__main__":
+    WeatherWatchService().start()

@@ -1,6 +1,7 @@
 from plugins.sources.registry import get_providers
 from workers.capture_worker import run_capture_job
 from workers.image_worker import run_image_job
+from workers.telegram_worker import run_telegram_job
 
 
 class WeatherWatch:
@@ -21,6 +22,12 @@ class WeatherWatch:
 
                 run_capture_job(job)
                 run_image_job(job)
+                job["caption"] = (
+                                    "📡 <b>NORTH LUZON WEATHER WATCH</b>\n\n"
+                                    "General weather update ready for review.\n\n"
+                                 f"{job['source']}"
+                                    )
+                run_telegram_job(job)
 
                 print(f"Generated from {provider['name']}: {job['final_output_path']}")
                 break
