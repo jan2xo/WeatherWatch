@@ -1,7 +1,7 @@
 from plugins.sources.registry import get_providers
-from workers.capture_worker import run_capture_job
-from workers.image_worker import run_image_job
-from workers.telegram_worker import run_telegram_job
+from services.capture_services import run_capture_job
+from services.image_services import run_image_job
+from services.telegram_services import run_telegram_job
 
 
 class WeatherWatch:

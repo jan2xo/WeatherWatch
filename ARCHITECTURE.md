@@ -3,8 +3,8 @@ WeatherWatch Architecture
 core/
     Orchestration Layer
 
-workers/
-    Job Execution Layer
+services/
+    Service Execution Layer
 
 helpers/
     Shared Utilities
