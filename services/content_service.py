@@ -24,17 +24,30 @@ def join_filipino(items):
     return f"{', '.join(items[:-1])}, at {items[-1]}"
 
 
+def build_source_block(job):
+    """
+    Forecast text comes from PAGASA.
+    Map/visualization comes from the active provider: Windy, PANaHON, etc.
+    """
+
+    provider_display = job.get("provider_display") or job.get("provider") or "Provider"
+    provider_url = job.get("provider_url") or job.get("url") or ""
+
+    if provider_url:
+        return f"Forecast: PAGASA | pagasa.dost.gov.ph\nMap: {provider_display.upper()} | {provider_url}"
+
+    return f"Forecast: PAGASA\nMap: {provider_display.upper()}"
+
+
 def build_graphic_headline(job):
     forecast = job.get("forecast", {})
     storms = forecast.get("storms", [])
 
     if forecast.get("has_storms"):
-
         if len(storms) >= 2:
             return "DALAWANG BAGYO,\nPATULOY NA BINABANTAYAN"
 
         storm = storms[0]
-
         return f"{storm['name']}\nPATULOY NA BINABANTAYAN"
 
     if forecast.get("habagat"):
@@ -47,14 +60,13 @@ def build_graphic_headline(job):
 
 
 def build_facebook_caption(job):
-    source = job.get("source", "")
     headline = job.get("headline", "WEATHER UPDATE")
     forecast = job.get("forecast", {})
     storms = forecast.get("storms", [])
     bulletin_lines = forecast.get("bulletin_lines", [])
+    source_block = build_source_block(job)
 
     if forecast.get("has_storms"):
-
         storm_details = join_filipino([
             format_storm_detail(storm)
             for storm in storms
@@ -67,32 +79,30 @@ def build_facebook_caption(job):
         )
 
         bulletin = ""
-
         if bulletin_lines:
             bulletin = "\n\n" + "\n".join(bulletin_lines)
 
         return (
             f"{opener}\n\n"
-            f"UPDATE: Patuloy na mino-monitor ang {storm_details} batay sa pinakahuling datos ng PAGASA."
+            f"Batay sa pinakahuling weather bulletin ng PAGASA, patuloy na mino-monitor ang {storm_details}."
             f"{bulletin}\n\n"
-            f"{source}\n\n"
+            f"{source_block}\n\n"
             "#WeatherWatch #NorthLuzonWeatherWatch"
         )
 
     if bulletin_lines:
-
         return (
             f"📡 {headline}\n\n"
-            "UPDATE:\n"
+            "Batay sa pinakahuling weather bulletin ng PAGASA:\n\n"
             f"{chr(10).join(bulletin_lines)}\n\n"
-            f"{source}\n\n"
+            f"{source_block}\n\n"
             "#WeatherWatch #NorthLuzonWeatherWatch"
         )
 
     return (
         f"📡 {headline}\n\n"
-        "UPDATE: Patuloy nating mino-monitor ang lagay ng panahon sa North Luzon.\n\n"
-        f"{source}\n\n"
+        "Batay sa pinakahuling weather bulletin ng PAGASA, patuloy nating mino-monitor ang lagay ng panahon sa North Luzon.\n\n"
+        f"{source_block}\n\n"
         "#WeatherWatch #NorthLuzonWeatherWatch"
     )
 
