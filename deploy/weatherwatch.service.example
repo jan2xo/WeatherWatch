@@ -1,0 +1,17 @@
+[Unit]
+Description=WeatherWatch Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/weatherwatch
+EnvironmentFile=/opt/weatherwatch/.env
+ExecStart=/opt/weatherwatch/.venv/bin/python -m core.service
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+User=USER_REPLACE_ME
+
+[Install]
+WantedBy=multi-user.target

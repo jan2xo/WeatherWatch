@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+  echo "FAIL: $1"
+  exit 1
+}
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: ./scripts/build_release_zip.sh v0.7.6"
+  exit 1
+fi
+
+VERSION_TAG="$1"
+ZIP_NAME="WeatherWatch-${VERSION_TAG}.zip"
+DIST_DIR="dist"
+ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
+
+for path in requirements.txt .env.example core/service.py config/caption_templates.pagasa.json; do
+  [[ -f "$path" ]] || fail "Run this script from the WeatherWatch project root. Missing: $path"
+done
+
+for path in scripts/install_vps.sh scripts/verify_install.sh deploy/weatherwatch.service.example docs/VPS_DEPLOYMENT.md VERSION CHANGELOG.md; do
+  [[ -f "$path" ]] || fail "Release file missing: $path"
+done
+
+command -v zip >/dev/null 2>&1 || fail "zip command not found."
+
+mkdir -p "$DIST_DIR"
+rm -f "$ZIP_PATH"
+
+zip -r "$ZIP_PATH" . \
+  -x ".git/*" \
+  -x ".venv/*" \
+  -x "__pycache__/*" \
+  -x "*/__pycache__/*" \
+  -x "*.pyc" \
+  -x ".env" \
+  -x "state/" \
+  -x "state/*" \
+  -x "logs/" \
+  -x "logs/*" \
+  -x "output/" \
+  -x "output/*" \
+  -x "backups/" \
+  -x "backups/*" \
+  -x "dist/" \
+  -x "dist/*" \
+  -x "data/template_uploads/" \
+  -x "data/template_uploads/*" \
+  -x "data/template_backups/" \
+  -x "data/template_backups/*" \
+  -x ".DS_Store" \
+  -x "*/.DS_Store"
+
+echo "Release ZIP created:"
+echo "  $ZIP_PATH"

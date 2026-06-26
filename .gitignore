@@ -8,5 +8,7 @@ state/
 data/template_backups/
 data/template_uploads/
 logs/
+backups/
+dist/
 
 .DS_Store
