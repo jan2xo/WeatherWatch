@@ -1,5 +1,19 @@
+MODIFY_HELP_TEXT = (
+    "<b>Modify Help:</b>\n"
+    "/modify + full caption updates the Facebook/Instagram caption and derives the GPX headline from the first line.\n"
+    "/modify HEADLINE: updates only the GPX graphic headline.\n"
+    "/modify HEADLINE: + CAPTION: lets you override the GPX headline while using a separate Facebook caption.\n"
+    "Attach a photo with /modify to replace the image.\n"
+    "HEADLINE: affects only the graphic. It does not change the Facebook caption unless CAPTION: is also supplied."
+)
+
+
 def format_storm_label(storm):
     return f"{storm['category']} {storm['hashtag']}"
+
+
+def build_caption_opener(headline, emoji):
+    return f"{emoji} {' '.join(headline.splitlines())}!"
 
 
 def format_storm_detail(storm):
@@ -22,6 +36,15 @@ def join_filipino(items):
         return f"{items[0]} at {items[1]}"
 
     return f"{', '.join(items[:-1])}, at {items[-1]}"
+
+
+def format_provider_display(job):
+    return (
+        job.get("provider_display")
+        or job.get("provider_url")
+        or job.get("provider")
+        or "Provider"
+    ).upper()
 
 
 def build_source_block(job):
@@ -48,7 +71,11 @@ def build_graphic_headline(job):
             return "DALAWANG BAGYO,\nPATULOY NA BINABANTAYAN"
 
         storm = storms[0]
-        return f"{storm['name']}\nPATULOY NA BINABANTAYAN"
+        return (
+            f"{storm['category'].upper()}\n"
+            f"{storm['hashtag']}\n"
+            "PATULOY NA BINABANTAYAN"
+        )
 
     if forecast.get("habagat"):
         return "HABAGAT\nNAKAAAPEKTO SA LUZON"
@@ -72,11 +99,7 @@ def build_facebook_caption(job):
             for storm in storms
         ])
 
-        opener = (
-            "🌀 DALAWANG BAGYO, PATULOY NA BINABANTAYAN!"
-            if len(storms) >= 2
-            else f"🌀 {format_storm_label(storms[0])}, PATULOY NA BINABANTAYAN!"
-        )
+        opener = build_caption_opener(headline, "🌀")
 
         bulletin = ""
         if bulletin_lines:
@@ -109,11 +132,12 @@ def build_facebook_caption(job):
 
 def build_captions(job):
     facebook_caption = build_facebook_caption(job)
+    provider_display = format_provider_display(job)
 
     telegram_caption = (
         "🤖 <b>WEATHERWATCH GENERATED UPDATE</b>\n\n"
         "Status: <b>Pending Approval</b>\n"
-        f"Provider: <b>{job.get('provider')}</b>\n\n"
+        f"Provider: <b>{provider_display}</b>\n\n"
         f"<b>Facebook Caption Preview:</b>\n{facebook_caption}"
     )
 
@@ -132,7 +156,12 @@ def build_telegram_review_caption(job, current_job):
         "<b>Commands:</b>\n"
         "/approve\n"
         "/reject\n"
+        "/retry_publish\n"
+        "/fbstatus\n"
+        "/fb_reconnect\n\n"
+        f"{MODIFY_HELP_TEXT}\n\n"
+        "<b>Example:</b>\n"
         "/modify\n"
-        "HEADLINE: ...\n"
-        "CAPTION: ..."
+        "🌀 YOUR OPENER HERE!\n\n"
+        "UPDATE: ..."
     )

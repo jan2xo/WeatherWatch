@@ -1,9 +1,18 @@
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 STATE_FILE = Path("output/approval_state.json")
+HISTORY_RETENTION_DAYS = 7
+HISTORY_DATE_FIELDS = [
+    "posted_at",
+    "rejected_at",
+    "publish_failed_at",
+    "approved_at",
+    "modified_at",
+    "created_at",
+]
 
 
 def default_state():
@@ -23,7 +32,42 @@ def load_state():
         return default_state()
 
 
+def parse_timestamp(value):
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def history_timestamp(job):
+    for field in HISTORY_DATE_FIELDS:
+        timestamp = parse_timestamp(job.get(field))
+
+        if timestamp:
+            return timestamp
+
+    return None
+
+
+def prune_history(state):
+    cutoff = datetime.now() - timedelta(days=HISTORY_RETENTION_DAYS)
+    history = []
+
+    for job in state.get("history", []):
+        timestamp = history_timestamp(job)
+
+        if not timestamp or timestamp >= cutoff:
+            history.append(job)
+
+    state["history"] = history
+    return state
+
+
 def save_state(state):
+    state = prune_history(state)
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(state, indent=2))
 
@@ -39,6 +83,8 @@ def create_current_job(job):
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "page": job.get("page", "north_luzon_weather_watch"),
         "provider": job.get("provider"),
+        "provider_display": job.get("provider_display"),
+        "provider_url": job.get("provider_url"),
         "source": job.get("source"),
         "headline": job.get("headline"),
         "captions": job.get("captions", {}),
@@ -105,6 +151,34 @@ def update_current_job(fields):
     return state["current"]
 
 
+def mark_current_publishing():
+    state = load_state()
+
+    if not state.get("current"):
+        return None
+
+    state["current"]["status"] = "publishing"
+    state["current"]["publishing_at"] = datetime.now().isoformat(timespec="seconds")
+    state["current"].pop("last_error", None)
+
+    save_state(state)
+    return state["current"]
+
+
+def mark_current_publish_failed(error):
+    state = load_state()
+
+    if not state.get("current"):
+        return None
+
+    state["current"]["status"] = "publish_failed"
+    state["current"]["publish_failed_at"] = datetime.now().isoformat(timespec="seconds")
+    state["current"]["last_error"] = str(error)
+
+    save_state(state)
+    return state["current"]
+
+
 def mark_current_posted(facebook_post_id=None):
     state = load_state()
 
@@ -114,6 +188,7 @@ def mark_current_posted(facebook_post_id=None):
     state["current"]["status"] = "posted"
     state["current"]["posted_at"] = datetime.now().isoformat(timespec="seconds")
     state["current"]["facebook_post_id"] = facebook_post_id
+    state["current"].pop("last_error", None)
 
     state["history"].append(state["current"])
     state["current"] = None

@@ -1,12 +1,27 @@
 from plugins.sources.registry import get_providers
 from pipelines.weather_pipeline import run_weather_pipeline
 from services.pagasa_service import fetch_daily_forecast
+from storage.approval_store import get_current_job
 
 
 class WeatherWatch:
 
     def update(self):
+        current_job = get_current_job()
+
+        if current_job:
+            print(
+                "Weather update skipped: "
+                f"current job {current_job.get('job_id')} is {current_job.get('status')}"
+            )
+            return {
+                "skipped": True,
+                "reason": "current_job_exists",
+                "current_job": current_job,
+            }
+
         providers = get_providers()
+        last_error = None
 
         for provider in providers:
             try:
@@ -26,10 +41,16 @@ class WeatherWatch:
                         "forecast_text": fetch_daily_forecast(),
                     }
 
-                run_weather_pipeline(job)
+                current_job = run_weather_pipeline(job)
 
                 print(f"Queued for approval: {job['final_output_path']}")
-                return
+                return current_job
 
             except Exception as error:
+                last_error = error
                 print(f"Provider failed: {provider['name']} → {error}")
+
+        if last_error:
+            raise last_error
+
+        raise RuntimeError("No weather providers are configured.")

@@ -2,6 +2,8 @@ from services.telegram_service import send_telegram_message
 from core.telegram_listener import build_telegram_app
 from core.scheduler import start_scheduler
 from core.app import WeatherWatch
+from config.settings import get_optional_env, validate_runtime_config
+from services.facebook_admin_service import start_facebook_admin_server
 
 
 class WeatherWatchService:
@@ -10,7 +12,14 @@ class WeatherWatchService:
         print("Telegram Listener Running")
         print("Press CTRL+C to stop.")
 
+        validate_runtime_config()
+
         telegram_app = build_telegram_app()
+        facebook_admin_server = None
+
+        if get_optional_env("FACEBOOK_REDIRECT_URI"):
+            facebook_admin_server = start_facebook_admin_server()
+
         weatherwatch = WeatherWatch()
 
         try:
@@ -34,4 +43,7 @@ class WeatherWatchService:
             raise
 
         finally:
+            if facebook_admin_server:
+                facebook_admin_server.shutdown()
+
             print("WeatherWatch Service ended.")

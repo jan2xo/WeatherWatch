@@ -1,44 +1,62 @@
-import os
 import requests
 from pathlib import Path
-from dotenv import load_dotenv
+
+from config.settings import get_required_env
 
 
-load_dotenv()
+TELEGRAM_PHOTO_CAPTION_LIMIT = 1024
+TELEGRAM_MESSAGE_LIMIT = 4096
 
 
 def get_telegram_config():
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    return (
+        get_required_env("TELEGRAM_BOT_TOKEN"),
+        get_required_env("TELEGRAM_CHAT_ID"),
+    )
 
-    if not bot_token:
-        raise ValueError("Missing TELEGRAM_BOT_TOKEN in .env")
 
-    if not chat_id:
-        raise ValueError("Missing TELEGRAM_CHAT_ID in .env")
+def split_telegram_text(text: str):
+    chunks = []
+    remaining = text
 
-    return bot_token, chat_id
+    while len(remaining) > TELEGRAM_MESSAGE_LIMIT:
+        split_at = remaining.rfind("\n", 0, TELEGRAM_MESSAGE_LIMIT)
+
+        if split_at <= 0:
+            split_at = TELEGRAM_MESSAGE_LIMIT
+
+        chunks.append(remaining[:split_at].strip())
+        remaining = remaining[split_at:].strip()
+
+    if remaining:
+        chunks.append(remaining)
+
+    return chunks
 
 
 def send_telegram_message(text: str):
     bot_token, chat_id = get_telegram_config()
+    results = []
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
-    response = requests.post(
-        url,
-        data={
-            "chat_id": chat_id,
-            "text": text,
-            "parse_mode": "HTML",
-        },
-        timeout=30,
-    )
+    for chunk in split_telegram_text(text):
+        response = requests.post(
+            url,
+            data={
+                "chat_id": chat_id,
+                "text": chunk,
+                "parse_mode": "HTML",
+            },
+            timeout=30,
+        )
 
-    if not response.ok:
-        raise RuntimeError(f"Telegram message failed: {response.text}")
+        if not response.ok:
+            raise RuntimeError(f"Telegram message failed: {response.text}")
 
-    return response.json()
+        results.append(response.json())
+
+    return results[-1] if len(results) == 1 else results
 
 
 def run_telegram_job(job):
@@ -50,6 +68,10 @@ def run_telegram_job(job):
         raise FileNotFoundError(f"Image not found: {image_path}")
 
     caption = job.get("caption", "WeatherWatch update ready for review.")
+    photo_caption = caption
+
+    if len(caption) > TELEGRAM_PHOTO_CAPTION_LIMIT:
+        photo_caption = "WeatherWatch update generated. Full approval preview follows."
 
     url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
 
@@ -58,7 +80,7 @@ def run_telegram_job(job):
             url,
             data={
                 "chat_id": chat_id,
-                "caption": caption,
+                "caption": photo_caption,
                 "parse_mode": "HTML",
             },
             files={
@@ -70,4 +92,12 @@ def run_telegram_job(job):
     if not response.ok:
         raise RuntimeError(f"Telegram failed: {response.text}")
 
-    return response.json()
+    result = response.json()
+
+    if photo_caption != caption:
+        return {
+            "photo": result,
+            "message": send_telegram_message(caption),
+        }
+
+    return result
