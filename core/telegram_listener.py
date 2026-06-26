@@ -20,6 +20,7 @@ from services.facebook_service import (
     check_facebook_token_health,
     get_facebook_status,
     publish_current_job,
+    save_manual_page_access_token,
 )
 from config.settings import (
     get_required_env,
@@ -265,11 +266,13 @@ def build_preview_caption(job):
         f"<b>GPX Headline:</b>\n{job.get('headline')}\n\n"
         f"<b>Facebook Caption Preview:</b>\n{facebook_caption}\n\n"
         "<b>Commands:</b>\n"
+        "/manual\n"
         "/approve\n"
         "/reject\n"
         "/retry_publish\n"
         "/fbstatus\n"
-        "/fb_reconnect\n\n"
+        "/fb_reconnect\n"
+        "/fb_set_token\n\n"
         f"{MODIFY_HELP_TEXT}\n\n"
         "<b>Example:</b>\n"
         "/modify\n"
@@ -289,6 +292,38 @@ def format_provider_display(job):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("WeatherWatch bot is online. 🦾")
+
+
+async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "WeatherWatch Manual\n\n"
+        "Basic:\n"
+        "/start - Check if the bot is online.\n"
+        "/status - Show the current WeatherWatch job and caption preview.\n\n"
+        "Admin update flow:\n"
+        "/update - Generate a new weather update and send it for approval.\n"
+        "/approve - Approve the current job and publish it to Facebook.\n"
+        "/reject - Reject the current job and move it to history.\n"
+        "/retry_publish - Retry Facebook publishing for approved or publish_failed jobs.\n"
+        "/fbstatus - Show Facebook token and publish status without exposing tokens.\n\n"
+        "Facebook token management:\n"
+        "/fb_reconnect - Get the local Facebook OAuth reconnect URL.\n"
+        "/fb_set_token PAGE_ACCESS_TOKEN - Manually save a Page token fallback. Use only in a private admin chat.\n\n"
+        "Modify examples:\n"
+        "/modify + full caption - Updates Facebook/Instagram caption and derives GPX headline from the first line.\n\n"
+        "/modify\n"
+        "HEADLINE:\n"
+        "CUSTOM GPX HEADLINE\n\n"
+        "Updates only the GPX graphic headline.\n\n"
+        "/modify\n"
+        "HEADLINE:\n"
+        "CUSTOM GPX HEADLINE\n\n"
+        "CAPTION:\n"
+        "your Facebook caption here\n\n"
+        "Uses separate GPX headline and Facebook caption.\n\n"
+        "Photo fallback:\n"
+        "Attach a photo with /modify to replace the raw image and regenerate the GPX graphic."
+    )
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -444,6 +479,41 @@ async def fb_reconnect_command(update: Update, context: ContextTypes.DEFAULT_TYP
     )
 
 
+async def fb_set_token_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    token = " ".join(context.args).strip()
+
+    if message:
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+    if not token:
+        await update.effective_chat.send_message(
+            "Send the manually-created Page access token like this:\n\n"
+            "/fb_set_token PAGE_ACCESS_TOKEN\n\n"
+            "Use a private admin chat. The token will not be echoed back."
+        )
+        return
+
+    try:
+        result = await asyncio.to_thread(save_manual_page_access_token, token)
+    except Exception as error:
+        await update.effective_chat.send_message(
+            "⚠️ Facebook Page token was not saved.\n\n"
+            f"{error}"
+        )
+        return
+
+    await update.effective_chat.send_message(
+        "✅ Facebook Page token saved.\n\n"
+        f"Page: {result.get('page_name') or result.get('page_id')}\n"
+        f"Source: {result.get('source')}\n"
+        f"Status: {result.get('status')}"
+    )
+
+
 async def reject_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ok = reject_current_job()
 
@@ -565,6 +635,7 @@ def build_telegram_app():
     app = Application.builder().token(token).build()
 
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("manual", admin_command(manual_command)))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("update", admin_command(update_command)))
     app.add_handler(CommandHandler("approve", admin_command(approve_command)))
@@ -572,6 +643,7 @@ def build_telegram_app():
     app.add_handler(CommandHandler("retry_publish", admin_command(retry_publish_command)))
     app.add_handler(CommandHandler("fbstatus", admin_command(fbstatus_command)))
     app.add_handler(CommandHandler("fb_reconnect", admin_command(fb_reconnect_command)))
+    app.add_handler(CommandHandler("fb_set_token", admin_command(fb_set_token_command)))
 
     app.add_handler(MessageHandler(filters.PHOTO | filters.TEXT, modify_message_handler))
 

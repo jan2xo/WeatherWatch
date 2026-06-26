@@ -18,12 +18,18 @@ class WeatherWatchService:
         facebook_admin_server = None
 
         if get_optional_env("FACEBOOK_REDIRECT_URI"):
-            facebook_admin_server = start_facebook_admin_server()
+            try:
+                facebook_admin_server = start_facebook_admin_server()
+            except OSError as error:
+                print(f"Facebook admin reconnect server not started: {error}")
 
         weatherwatch = WeatherWatch()
 
         try:
-            send_telegram_message("WeatherWatch bot is online. 🦾")
+            try:
+                send_telegram_message("WeatherWatch bot is online. 🦾")
+            except Exception as error:
+                print(f"Startup Telegram notification failed: {error}")
 
             start_scheduler(weatherwatch.update)
 

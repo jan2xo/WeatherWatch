@@ -220,6 +220,21 @@ def reconnect_facebook_with_code(code):
     return public_token_state(state)
 
 
+def save_manual_page_access_token(access_token):
+    page_id = get_required_env("FACEBOOK_PAGE_ID")
+    page_data = validate_page_token(page_id, access_token)
+    save_page_token(
+        page_id=page_id,
+        page_name=page_data.get("name"),
+        access_token=access_token,
+        token_type="page",
+        source="telegram_manual",
+    )
+    state = update_token_health("active", page_name=page_data.get("name"))
+
+    return public_token_state(state)
+
+
 def get_facebook_access_token():
     page_id = get_required_env("FACEBOOK_PAGE_ID")
     token_state = load_facebook_token_state()
