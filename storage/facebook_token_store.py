@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-STATE_FILE = Path("output/facebook_token_state.json")
+STATE_FILE = Path("state/facebook_token_state.json")
 
 
 def utc_now():

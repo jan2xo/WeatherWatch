@@ -4,6 +4,7 @@ from core.scheduler import start_scheduler
 from core.app import WeatherWatch
 from config.settings import get_optional_env, validate_runtime_config
 from services.facebook_admin_service import start_facebook_admin_server
+from storage.file_retention import cleanup_manual_inputs
 
 
 class WeatherWatchService:
@@ -13,6 +14,7 @@ class WeatherWatchService:
         print("Press CTRL+C to stop.")
 
         validate_runtime_config()
+        cleanup_manual_inputs()
 
         telegram_app = build_telegram_app()
         facebook_admin_server = None

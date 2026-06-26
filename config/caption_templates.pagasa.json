@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "language": "fil",
+  "provider": "PAGASA",
+  "templates": {
+    "cyclone_location": "Batay sa pinakahuling tala ng PAGASA, si {classification} {hashtag}{international_name} ay namataan sa layong {location_text}.",
+    "cyclone_intensity": "Taglay nito ang maximum sustained winds na {maximum_sustained_winds_kmh} km/h malapit sa gitna at pagbugsong umaabot sa {gustiness_kmh} km/h.",
+    "cyclone_movement": "Kumikilos ito {movement_direction} sa bilis na {movement_speed_kmh} km/h.",
+    "affected_system": "Samantala, nakaaapekto rin ang {weather_system} sa {affected_areas}.",
+    "source_line": "Forecast: PAGASA | pagasa.dost.gov.ph"
+  },
+  "translations": {
+    "weather_systems": {
+      "southwest monsoon": "Habagat",
+      "northeast monsoon": "Amihan"
+    },
+    "movement_directions": {
+      "northward": "pahilaga",
+      "north northeastward": "pahilagang-silangan",
+      "northeastward": "pahilagang-silangan",
+      "east northeastward": "pasilangan-hilagang-silangan",
+      "eastward": "pasilangan",
+      "east southeastward": "pasilangan-timog-silangan",
+      "southeastward": "patimog-silangan",
+      "south southeastward": "patimog-timog-silangan",
+      "southward": "patimog",
+      "south southwestward": "patimog-timog-kanluran",
+      "southwestward": "patimog-kanluran",
+      "west southwestward": "pakanluran-timog-kanluran",
+      "westward": "pakanluran",
+      "west northwestward": "pakanluran-hilagang-kanluran",
+      "northwestward": "pahilagang-kanluran",
+      "north northwestward": "pahilagang-kanluran"
+    }
+  }
+}

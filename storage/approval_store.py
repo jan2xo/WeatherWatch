@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 
-STATE_FILE = Path("output/approval_state.json")
+STATE_FILE = Path("state/approval_state.json")
 HISTORY_RETENTION_DAYS = 7
 HISTORY_DATE_FIELDS = [
     "posted_at",

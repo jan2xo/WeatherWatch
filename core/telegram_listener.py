@@ -1,5 +1,7 @@
 import re
 import asyncio
+import json
+import html
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -22,10 +24,20 @@ from services.facebook_service import (
     publish_current_job,
     save_manual_page_access_token,
 )
+from services.caption_template_service import (
+    TEMPLATE_PATH,
+    get_template_status,
+    reload_templates,
+    replace_template_from_file,
+    starter_template_json,
+    template_json_preview,
+    validate_template_file,
+)
 from config.settings import (
     get_required_env,
     parse_env_id_list,
 )
+from storage.file_retention import cleanup_manual_inputs
 from storage.approval_store import (
     get_current_job,
     approve_current_job,
@@ -322,7 +334,125 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "your Facebook caption here\n\n"
         "Uses separate GPX headline and Facebook caption.\n\n"
         "Photo fallback:\n"
-        "Attach a photo with /modify to replace the raw image and regenerate the GPX graphic."
+        "Attach a photo with /modify to replace the raw image and regenerate the GPX graphic.\n\n"
+        "Template tools:\n"
+        "Use /template_manual for caption template editing, validation, upload, and reload commands."
+    )
+
+
+async def template_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Caption Template Manual\n\n"
+        "Templates control deterministic PAGASA caption lines.\n"
+        "Editing templates changes wording without editing Python code.\n\n"
+        "Commands:\n"
+        "/template_status - Show provider, version, language, modified time, and validation status.\n"
+        "/template_show - Show current template JSON or a shortened preview.\n"
+        "/template_builder - Show a starter JSON template to copy and edit.\n"
+        "/template_validate - Validate the saved template without applying changes.\n"
+        "/template_reload - Reload template JSON from disk. Restart should not be required if this succeeds.\n"
+        "/template_upload - Upload edited JSON as a file attachment. The bot validates it before replacing the active template.\n\n"
+        "Required template keys:\n"
+        "cyclone_location, cyclone_intensity, cyclone_movement, affected_system, source_line\n\n"
+        "Required translation groups:\n"
+        "weather_systems, movement_directions"
+    )
+
+
+def format_template_status(status):
+    lines = [
+        "Caption Template Status",
+        f"Provider: {status.get('provider') or 'Unknown'}",
+        f"Version: {status.get('version') or 'Unknown'}",
+        f"Language: {status.get('language') or 'Unknown'}",
+        f"Last modified: {status.get('last_modified') or 'Unknown'}",
+        f"Validation: {status.get('validation_status')}",
+    ]
+
+    if status.get("last_validation_error"):
+        lines.append(f"Last error: {status.get('last_validation_error')}")
+
+    return "\n".join(lines)
+
+
+async def template_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(format_template_status(get_template_status()))
+
+
+async def template_show_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        text = template_json_preview()
+    except Exception as error:
+        await update.message.reply_text(f"Template preview failed: {error}")
+        return
+
+    await update.message.reply_text(f"<pre>{html.escape(text)}</pre>", parse_mode="HTML")
+
+
+async def template_builder_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        text = starter_template_json()
+    except Exception as error:
+        await update.message.reply_text(f"Template builder failed: {error}")
+        return
+
+    await update.message.reply_text(f"<pre>{html.escape(text)}</pre>", parse_mode="HTML")
+
+
+async def template_validate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        validate_template_file(TEMPLATE_PATH)
+    except Exception as error:
+        await update.message.reply_text(f"⚠️ Template validation failed.\n\n{error}")
+        return
+
+    await update.message.reply_text("✅ Caption template is valid.")
+
+
+async def template_reload_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        reload_templates()
+    except Exception as error:
+        await update.message.reply_text(f"⚠️ Template reload failed.\n\n{error}")
+        return
+
+    await update.message.reply_text("✅ Caption template reloaded.")
+
+
+async def template_upload_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+
+    if not message.document:
+        await message.reply_text(
+            "Attach a JSON file with this command:\n\n"
+            "/template_upload"
+        )
+        return
+
+    document = message.document
+    filename = document.file_name or ""
+
+    if not filename.lower().endswith(".json"):
+        await message.reply_text("Upload rejected. The attached file must be JSON.")
+        return
+
+    temp_path = Path("data/template_uploads") / "caption_template_upload.json"
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        file = await context.bot.get_file(document.file_id)
+        await file.download_to_drive(str(temp_path))
+        status = await asyncio.to_thread(replace_template_from_file, temp_path)
+    except json.JSONDecodeError:
+        await message.reply_text("⚠️ Template upload failed. JSON could not be parsed.")
+        return
+    except Exception as error:
+        await message.reply_text(f"⚠️ Template upload failed.\n\n{error}")
+        return
+
+    await message.reply_text(
+        "✅ Caption template uploaded and reloaded.\n\n"
+        f"{format_template_status(status)}"
     )
 
 
@@ -555,6 +685,7 @@ async def modify_message_handler(update: Update, context: ContextTypes.DEFAULT_T
         await file.download_to_drive(str(image_path))
 
         updates["raw_image"] = str(image_path)
+        cleanup_manual_inputs()
 
     if not updates:
         await message.reply_text(
@@ -644,6 +775,13 @@ def build_telegram_app():
     app.add_handler(CommandHandler("fbstatus", admin_command(fbstatus_command)))
     app.add_handler(CommandHandler("fb_reconnect", admin_command(fb_reconnect_command)))
     app.add_handler(CommandHandler("fb_set_token", admin_command(fb_set_token_command)))
+    app.add_handler(CommandHandler("template_manual", admin_command(template_manual_command)))
+    app.add_handler(CommandHandler("template_status", admin_command(template_status_command)))
+    app.add_handler(CommandHandler("template_show", admin_command(template_show_command)))
+    app.add_handler(CommandHandler("template_builder", admin_command(template_builder_command)))
+    app.add_handler(CommandHandler("template_validate", admin_command(template_validate_command)))
+    app.add_handler(CommandHandler("template_reload", admin_command(template_reload_command)))
+    app.add_handler(CommandHandler("template_upload", admin_command(template_upload_command)))
 
     app.add_handler(MessageHandler(filters.PHOTO | filters.TEXT, modify_message_handler))
 

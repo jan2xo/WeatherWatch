@@ -1,5 +1,11 @@
 import re
 
+from services.forecast_parser import (
+    build_affected_weather_caption_detail,
+    build_structured_forecast_caption_detail,
+    parse_pagasa_forecast_text,
+)
+
 
 FORECAST_RULES = [
     {
@@ -146,9 +152,13 @@ def extract_storms(text: str):
 def parse_forecast_text(text: str):
     lowered = text.lower()
     storms = extract_storms(text)
+    structured = parse_pagasa_forecast_text(text)
 
     return {
         "raw_text": text,
+        "structured": structured,
+        "structured_caption_detail": build_structured_forecast_caption_detail(structured),
+        "affected_weather_caption_detail": build_affected_weather_caption_detail(structured),
         "weather_type": detect_weather_type(text),
 
         "storms": storms,

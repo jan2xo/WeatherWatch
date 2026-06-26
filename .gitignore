@@ -4,6 +4,9 @@
 __pycache__/
 
 output/
+state/
+data/template_backups/
+data/template_uploads/
 logs/
 
 .DS_Store

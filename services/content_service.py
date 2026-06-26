@@ -98,16 +98,38 @@ def build_facebook_caption(job):
             format_storm_detail(storm)
             for storm in storms
         ])
+        structured_detail = forecast.get("structured_caption_detail")
+        affected_weather_detail = forecast.get("affected_weather_caption_detail")
 
         opener = build_caption_opener(headline, "🌀")
 
-        bulletin = ""
+        details = (
+            structured_detail
+            if structured_detail
+            else f"Batay sa pinakahuling weather bulletin ng PAGASA, patuloy na mino-monitor ang {storm_details}."
+        )
+
+        bulletin_lines = [
+            line
+            for line in bulletin_lines
+            if line != affected_weather_detail
+        ]
+
+        bulletin_parts = []
+
+        if affected_weather_detail:
+            bulletin_parts.append(affected_weather_detail)
+
         if bulletin_lines:
-            bulletin = "\n\n" + "\n".join(bulletin_lines)
+            bulletin_parts.extend(bulletin_lines)
+
+        bulletin = ""
+        if bulletin_parts:
+            bulletin = "\n\n" + "\n".join(bulletin_parts)
 
         return (
             f"{opener}\n\n"
-            f"Batay sa pinakahuling weather bulletin ng PAGASA, patuloy na mino-monitor ang {storm_details}."
+            f"{details}"
             f"{bulletin}\n\n"
             f"{source_block}\n\n"
             "#WeatherWatch #NorthLuzonWeatherWatch"
