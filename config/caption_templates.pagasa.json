@@ -3,10 +3,10 @@
   "language": "fil",
   "provider": "PAGASA",
   "templates": {
-    "cyclone_location": "Batay sa pinakahuling tala ng PAGASA, si {classification} {hashtag}{international_name} ay namataan sa layong {location_text}.",
+    "cyclone_location": "Batay sa pinakahuling tala ng PAGASA, si {cyclone_classification} {cyclone_name_local_title}{international_name_display} ay namataan sa layong {location_text}.",
     "cyclone_intensity": "Taglay nito ang maximum sustained winds na {maximum_sustained_winds_kmh} km/h malapit sa gitna at pagbugsong umaabot sa {gustiness_kmh} km/h.",
-    "cyclone_movement": "Kumikilos ito {movement_direction} sa bilis na {movement_speed_kmh} km/h.",
-    "affected_system": "Samantala, nakaaapekto rin ang {weather_system} sa {affected_areas}.",
+    "cyclone_movement": "Kumikilos ito {movement_direction_fil} sa bilis na {movement_speed_kmh} km/h.",
+    "affected_system": "Samantala, nakaaapekto rin ang {affected_weather_system_fil} sa {affected_areas_text}.",
     "source_line": "Forecast: PAGASA | pagasa.dost.gov.ph"
   },
   "translations": {

@@ -6,6 +6,8 @@ from pathlib import Path
 
 TEMPLATE_PATH = Path("config/caption_templates.pagasa.json")
 BACKUP_DIR = Path("data/template_backups")
+MAX_TEMPLATE_UPLOAD_BYTES = 100 * 1024
+MAX_TEMPLATE_BACKUPS = 10
 REQUIRED_TOP_LEVEL_KEYS = {
     "version",
     "language",
@@ -25,20 +27,34 @@ REQUIRED_TRANSLATION_KEYS = {
     "movement_directions",
 }
 ALLOWED_TEMPLATE_FIELDS = {
+    "advisory_time",
+    "cyclone_classification",
+    "cyclone_name_local",
+    "cyclone_name_local_title",
+    "cyclone_name_international",
+    "international_name_display",
+    "latitude",
+    "longitude",
+    "maximum_sustained_winds_kmh",
+    "gustiness_kmh",
+    "movement_direction_fil",
+    "movement_speed_kmh",
+    "affected_weather_system",
+    "affected_weather_system_fil",
+    "affected_areas_text",
+    # Backward-compatible aliases used by v0.7.3 templates.
     "classification",
     "hashtag",
     "international_name",
     "location_text",
-    "maximum_sustained_winds_kmh",
-    "gustiness_kmh",
     "movement_direction",
-    "movement_speed_kmh",
     "weather_system",
     "affected_areas",
 }
 
 _template_cache = None
 _last_validation_error = None
+_last_loaded = None
 
 
 class SafeFormatDict(dict):
@@ -100,7 +116,15 @@ def validate_template_structure(template):
     return True
 
 
+def validate_template_upload_size(path):
+    if Path(path).stat().st_size > MAX_TEMPLATE_UPLOAD_BYTES:
+        raise ValueError("Template upload rejected: file too large.")
+
+    return True
+
+
 def validate_template_file(path=TEMPLATE_PATH):
+    validate_template_upload_size(path)
     template = load_json_file(path)
     validate_template_structure(template)
     return template
@@ -109,6 +133,7 @@ def validate_template_file(path=TEMPLATE_PATH):
 def reload_templates():
     global _template_cache
     global _last_validation_error
+    global _last_loaded
 
     try:
         template = validate_template_file(TEMPLATE_PATH)
@@ -118,6 +143,7 @@ def reload_templates():
 
     _template_cache = template
     _last_validation_error = None
+    _last_loaded = datetime.now().isoformat(timespec="seconds")
     return template
 
 
@@ -149,8 +175,10 @@ def get_template_status():
         "version": template.get("version"),
         "language": template.get("language"),
         "last_modified": modified,
+        "last_loaded": _last_loaded,
         "validation_status": validation_status,
         "last_validation_error": validation_error or _last_validation_error,
+        "backup_count": count_template_backups(),
     }
 
 
@@ -178,7 +206,33 @@ def backup_current_template():
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     backup_path = BACKUP_DIR / f"caption_templates.pagasa.{utc_timestamp()}.json"
     backup_path.write_text(TEMPLATE_PATH.read_text())
+    prune_template_backups()
     return backup_path
+
+
+def count_template_backups():
+    if not BACKUP_DIR.exists():
+        return 0
+
+    return len(list(BACKUP_DIR.glob("caption_templates.pagasa.*.json")))
+
+
+def prune_template_backups(max_backups=MAX_TEMPLATE_BACKUPS):
+    if not BACKUP_DIR.exists():
+        return []
+
+    backups = sorted(
+        BACKUP_DIR.glob("caption_templates.pagasa.*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    deleted = []
+
+    for path in backups[max_backups:]:
+        path.unlink()
+        deleted.append(str(path))
+
+    return deleted
 
 
 def replace_template_from_file(uploaded_path):

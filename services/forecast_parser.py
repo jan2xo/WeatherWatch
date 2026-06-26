@@ -103,6 +103,13 @@ def format_hashtag(name):
     return f"#{name.title().replace(' ', '')}PH"
 
 
+def format_title_name(name):
+    if not name:
+        return ""
+
+    return name.title().replace(" ", "")
+
+
 def translate_movement_direction(direction):
     if not direction:
         return None
@@ -122,6 +129,45 @@ def safe_render_template(template_name, values, fallback):
         return render_template(template_name, values)
     except Exception:
         return fallback
+
+
+def build_template_values(forecast_data, affected_areas_text=""):
+    local_name = forecast_data.get("cyclone_name_local")
+    international_name = forecast_data.get("cyclone_name_international")
+    movement_direction = forecast_data.get("movement_direction")
+    weather_system = forecast_data.get("affected_weather_system")
+    translated_movement = translate_movement_direction(movement_direction)
+    translated_system = translate_weather_system(weather_system)
+    international_display = (
+        f" {{{international_name.title()}}}"
+        if international_name
+        else ""
+    )
+
+    return {
+        "advisory_time": forecast_data.get("advisory_time"),
+        "cyclone_classification": forecast_data.get("cyclone_classification"),
+        "cyclone_name_local": local_name,
+        "cyclone_name_local_title": format_hashtag(local_name),
+        "cyclone_name_international": international_name,
+        "international_name_display": international_display,
+        "location_text": normalize_compass_location(forecast_data.get("location_text")),
+        "latitude": forecast_data.get("latitude"),
+        "longitude": forecast_data.get("longitude"),
+        "maximum_sustained_winds_kmh": forecast_data.get("maximum_sustained_winds_kmh"),
+        "gustiness_kmh": forecast_data.get("gustiness_kmh"),
+        "movement_direction": movement_direction,
+        "movement_direction_fil": translated_movement,
+        "movement_speed_kmh": forecast_data.get("movement_speed_kmh"),
+        "affected_weather_system": weather_system,
+        "affected_weather_system_fil": translated_system,
+        "affected_areas_text": affected_areas_text,
+        "classification": forecast_data.get("cyclone_classification"),
+        "hashtag": format_hashtag(local_name),
+        "international_name": international_display,
+        "weather_system": translated_system,
+        "affected_areas": affected_areas_text,
+    }
 
 
 def parse_pagasa_forecast_text(text: str) -> dict:
@@ -195,6 +241,7 @@ def build_structured_forecast_caption_detail(forecast_data):
 
     hashtag = format_hashtag(local_name)
     international = f" {{{international_name.title()}}}" if international_name else ""
+    values = build_template_values(forecast_data)
     lines = []
 
     if location_text:
@@ -204,32 +251,21 @@ def build_structured_forecast_caption_detail(forecast_data):
             f"si {classification} {hashtag}{international} ay namataan sa layong "
             f"{normalized_location}."
         )
-        lines.append(safe_render_template("cyclone_location", {
-            "classification": classification,
-            "hashtag": hashtag,
-            "international_name": international,
-            "location_text": normalized_location,
-        }, fallback))
+        lines.append(safe_render_template("cyclone_location", values, fallback))
 
     if sustained is not None and gustiness is not None:
         fallback = (
             f"Taglay nito ang maximum sustained winds na {sustained} km/h malapit sa gitna "
             f"at pagbugsong umaabot sa {gustiness} km/h."
         )
-        lines.append(safe_render_template("cyclone_intensity", {
-            "maximum_sustained_winds_kmh": sustained,
-            "gustiness_kmh": gustiness,
-        }, fallback))
+        lines.append(safe_render_template("cyclone_intensity", values, fallback))
 
     if movement_direction and movement_speed is not None:
         translated_direction = translate_movement_direction(movement_direction)
         fallback = (
             f"Kumikilos ito {translated_direction} sa bilis na {movement_speed} km/h."
         )
-        lines.append(safe_render_template("cyclone_movement", {
-            "movement_direction": translated_direction,
-            "movement_speed_kmh": movement_speed,
-        }, fallback))
+        lines.append(safe_render_template("cyclone_movement", values, fallback))
 
     return "\n\n".join(lines)
 
@@ -250,7 +286,8 @@ def build_affected_weather_caption_detail(forecast_data):
         ])
 
     fallback = f"Samantala, nakaaapekto rin ang {system} sa {area_text}."
-    return safe_render_template("affected_system", {
-        "weather_system": system,
-        "affected_areas": area_text,
-    }, fallback)
+    return safe_render_template(
+        "affected_system",
+        build_template_values(forecast_data, affected_areas_text=area_text),
+        fallback,
+    )

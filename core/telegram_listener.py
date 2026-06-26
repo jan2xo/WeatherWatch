@@ -2,6 +2,7 @@ import re
 import asyncio
 import json
 import html
+import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -32,6 +33,7 @@ from services.caption_template_service import (
     starter_template_json,
     template_json_preview,
     validate_template_file,
+    MAX_TEMPLATE_UPLOAD_BYTES,
 )
 from config.settings import (
     get_required_env,
@@ -336,7 +338,9 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Photo fallback:\n"
         "Attach a photo with /modify to replace the raw image and regenerate the GPX graphic.\n\n"
         "Template tools:\n"
-        "Use /template_manual for caption template editing, validation, upload, and reload commands."
+        "Use /template_manual for caption template editing, validation, upload, and reload commands.\n\n"
+        "VPS backup reminder:\n"
+        "state/ is gitignored but must be backed up. Important files: state/approval_state.json and state/facebook_token_state.json."
     )
 
 
@@ -352,10 +356,14 @@ async def template_manual_command(update: Update, context: ContextTypes.DEFAULT_
         "/template_validate - Validate the saved template without applying changes.\n"
         "/template_reload - Reload template JSON from disk. Restart should not be required if this succeeds.\n"
         "/template_upload - Upload edited JSON as a file attachment. The bot validates it before replacing the active template.\n\n"
+        "Limits and safety:\n"
+        "Uploads must be JSON and 100 KB or smaller. The bot writes only to fixed template folders.\n\n"
         "Required template keys:\n"
         "cyclone_location, cyclone_intensity, cyclone_movement, affected_system, source_line\n\n"
         "Required translation groups:\n"
-        "weather_systems, movement_directions"
+        "weather_systems, movement_directions\n\n"
+        "VPS backup reminder:\n"
+        "state/ is gitignored but must be backed up. Important files: state/approval_state.json and state/facebook_token_state.json."
     )
 
 
@@ -366,7 +374,9 @@ def format_template_status(status):
         f"Version: {status.get('version') or 'Unknown'}",
         f"Language: {status.get('language') or 'Unknown'}",
         f"Last modified: {status.get('last_modified') or 'Unknown'}",
+        f"Last loaded: {status.get('last_loaded') or 'Never'}",
         f"Validation: {status.get('validation_status')}",
+        f"Backup count: {status.get('backup_count', 0)}",
     ]
 
     if status.get("last_validation_error"):
@@ -436,7 +446,11 @@ async def template_upload_command(update: Update, context: ContextTypes.DEFAULT_
         await message.reply_text("Upload rejected. The attached file must be JSON.")
         return
 
-    temp_path = Path("data/template_uploads") / "caption_template_upload.json"
+    if document.file_size and document.file_size > MAX_TEMPLATE_UPLOAD_BYTES:
+        await message.reply_text("Template upload rejected: file too large.")
+        return
+
+    temp_path = Path("data/template_uploads") / f"caption_template_upload.{uuid.uuid4().hex}.json"
     temp_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -445,6 +459,13 @@ async def template_upload_command(update: Update, context: ContextTypes.DEFAULT_
         status = await asyncio.to_thread(replace_template_from_file, temp_path)
     except json.JSONDecodeError:
         await message.reply_text("⚠️ Template upload failed. JSON could not be parsed.")
+        return
+    except ValueError as error:
+        if str(error) == "Template upload rejected: file too large.":
+            await message.reply_text("Template upload rejected: file too large.")
+            return
+
+        await message.reply_text(f"⚠️ Template upload failed.\n\n{error}")
         return
     except Exception as error:
         await message.reply_text(f"⚠️ Template upload failed.\n\n{error}")
@@ -486,12 +507,35 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if isinstance(result, dict) and result.get("skipped"):
             current_job = result.get("current_job", {})
-            await update.message.reply_text(
+            facebook_caption = (
+                current_job.get("captions", {}).get("facebook")
+                or current_job.get("caption")
+                or ""
+            )
+            caption_preview = facebook_caption
+
+            if len(caption_preview) > 900:
+                caption_preview = caption_preview[:900].rstrip() + "\n... shortened ..."
+
+            skipped_caption = (
                 "⏭ Weather update skipped.\n\n"
                 f"Current job: {current_job.get('job_id')}\n"
-                f"Status: {current_job.get('status')}\n\n"
-                "Use /approve, /reject, /retry_publish, or /fbstatus first."
+                f"Status: {current_job.get('status')}\n"
+                f"Provider: {format_provider_display(current_job)}\n\n"
+                f"GPX Headline:\n{current_job.get('headline') or 'None'}\n\n"
+                f"Facebook Caption Preview:\n{caption_preview or 'None'}\n\n"
+                "Use /approve, /reject, /modify, /retry_publish, or /fbstatus first."
             )
+            image_path = current_job.get("image")
+
+            if image_path and Path(image_path).exists():
+                await asyncio.to_thread(run_telegram_job, {
+                    "final_output_path": image_path,
+                    "caption": skipped_caption,
+                })
+            else:
+                await update.message.reply_text(skipped_caption)
+
             return
 
         await update.message.reply_text(
