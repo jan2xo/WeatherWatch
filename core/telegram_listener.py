@@ -304,6 +304,32 @@ def format_provider_display(job):
     ).upper()
 
 
+def current_job_caption_preview(job, limit=900):
+    facebook_caption = (
+        job.get("captions", {}).get("facebook")
+        or job.get("caption")
+        or ""
+    )
+
+    if len(facebook_caption) > limit:
+        return facebook_caption[:limit].rstrip() + "\n... shortened ..."
+
+    return facebook_caption
+
+
+async def send_job_preview(update: Update, job, caption):
+    image_path = job.get("image")
+
+    if image_path and Path(image_path).exists():
+        await asyncio.to_thread(run_telegram_job, {
+            "final_output_path": image_path,
+            "caption": caption,
+        })
+        return
+
+    await update.message.reply_text(caption)
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("WeatherWatch bot is online. 🦾")
 
@@ -486,17 +512,15 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    facebook_caption = job.get("captions", {}).get("facebook") or job.get("caption", "")
-
-    await update.message.reply_text(
+    await send_job_preview(update, job, (
         "WeatherWatch Service: RUNNING ✅\n\n"
         f"Current Job: {job['job_id']}\n"
         f"Status: {job['status']}\n"
         f"Provider: {format_provider_display(job)}\n"
         f"Source: {job.get('source')}\n\n"
         f"GPX Headline:\n{job.get('headline')}\n\n"
-        f"Facebook Caption:\n{facebook_caption}"
-    )
+        f"Facebook Caption Preview:\n{current_job_caption_preview(job)}"
+    ))
 
 
 async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -507,34 +531,16 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if isinstance(result, dict) and result.get("skipped"):
             current_job = result.get("current_job", {})
-            facebook_caption = (
-                current_job.get("captions", {}).get("facebook")
-                or current_job.get("caption")
-                or ""
-            )
-            caption_preview = facebook_caption
-
-            if len(caption_preview) > 900:
-                caption_preview = caption_preview[:900].rstrip() + "\n... shortened ..."
-
             skipped_caption = (
                 "⏭ Weather update skipped.\n\n"
                 f"Current job: {current_job.get('job_id')}\n"
                 f"Status: {current_job.get('status')}\n"
                 f"Provider: {format_provider_display(current_job)}\n\n"
                 f"GPX Headline:\n{current_job.get('headline') or 'None'}\n\n"
-                f"Facebook Caption Preview:\n{caption_preview or 'None'}\n\n"
+                f"Facebook Caption Preview:\n{current_job_caption_preview(current_job) or 'None'}\n\n"
                 "Use /approve, /reject, /modify, /retry_publish, or /fbstatus first."
             )
-            image_path = current_job.get("image")
-
-            if image_path and Path(image_path).exists():
-                await asyncio.to_thread(run_telegram_job, {
-                    "final_output_path": image_path,
-                    "caption": skipped_caption,
-                })
-            else:
-                await update.message.reply_text(skipped_caption)
+            await send_job_preview(update, current_job, skipped_caption)
 
             return
 
@@ -580,9 +586,9 @@ async def retry_publish_command(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     if job.get("status") not in {"approved", "publish_failed"}:
-        await update.message.reply_text(
+        await send_job_preview(update, job, (
             f"Current job is not ready for retry. Status: {job.get('status')}"
-        )
+        ))
         return
 
     await update.message.reply_text(
@@ -636,6 +642,10 @@ async def fbstatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if job.get("last_error"):
             lines.append(f"Last publish error: {job.get('last_error')}")
+
+    if job:
+        await send_job_preview(update, job, "\n".join(lines))
+        return
 
     await update.message.reply_text("\n".join(lines))
 
