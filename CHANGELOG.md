@@ -4,6 +4,55 @@ All notable changes to WeatherWatch are documented here.
 
 ---
 
+# v0.8.3 — Dashboard Control Plane
+
+## Added
+
+* Shared control-plane service for update, approval, rejection, modification, and publish retry workflows.
+* POST-only dashboard actions with local-only fallback security.
+* Optional `ADMIN_DASHBOARD_SECRET` authentication through form fields or the `X-WW-Admin-Secret` header.
+* Current-job headline, caption, image, framing, scheduler policy, and error visibility.
+* Safe current-job graphic preview served from the restricted output directory.
+* Dashboard control-plane verification without network publishing.
+
+## Changed
+
+* Telegram update, approve, reject, and retry handlers now use shared workflow functions.
+* The local dashboard is an authenticated control plane instead of read-only monitoring.
+
+---
+
+# v0.8.2 — Scheduler Pending Job Policy
+
+## Added
+
+* Configurable pending-job policy for scheduled updates.
+* Automatic rejection of stale `pending` or `modified` jobs immediately before the next scheduled update.
+* Validation guardrails that prevent approved or publishing jobs from being auto-rejected.
+
+## Changed
+
+* Scheduler status and dashboard metadata now expose the auto-reject policy.
+
+---
+
+# v0.8.1 — Config-Driven Scheduler
+
+## Added
+
+* Editable `config/scheduler.json` with IANA timezone and per-job schedules.
+* Last-known-good scheduler configuration, validation, uploads, and backups.
+* Allowlisted `/scheduler_*` administration commands.
+* Scheduler status in the local dashboard and `/health`.
+
+## Changed
+
+* APScheduler jobs are now registered from configuration instead of hardcoded Python times.
+* Scheduler reload and upload refresh runtime jobs without restarting WeatherWatch.
+* Pending approval jobs can prevent configured scheduled updates from running.
+
+---
+
 # v0.8.0 — Config-Driven Intelligent Map Framing
 
 ## Added

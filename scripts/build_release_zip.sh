@@ -16,7 +16,7 @@ ZIP_NAME="WeatherWatch-${VERSION_TAG}.zip"
 DIST_DIR="dist"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 
-for path in requirements.txt .env.example core/service.py config/caption_templates.pagasa.json config/content_composer.json config/image_rendering.json services/map_framing_service.py; do
+for path in requirements.txt .env.example core/service.py config/caption_templates.pagasa.json config/content_composer.json config/image_rendering.json config/scheduler.json services/map_framing_service.py services/scheduler_config_service.py services/control_plane_service.py; do
   [[ -f "$path" ]] || fail "Run this script from the WeatherWatch project root. Missing: $path"
 done
 
@@ -58,6 +58,10 @@ zip -r "$ZIP_PATH" . \
   -x "data/image_rendering_uploads/*" \
   -x "data/image_rendering_backups/" \
   -x "data/image_rendering_backups/*" \
+  -x "data/scheduler_uploads/" \
+  -x "data/scheduler_uploads/*" \
+  -x "data/scheduler_backups/" \
+  -x "data/scheduler_backups/*" \
   -x ".DS_Store" \
   -x "*/.DS_Store"
 

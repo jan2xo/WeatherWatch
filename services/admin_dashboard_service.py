@@ -1,9 +1,11 @@
 import html
+import hmac
 import json
 import threading
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from config.settings import get_optional_env, get_required_env
 from services.caption_template_service import get_template_status
@@ -12,15 +14,28 @@ from services.facebook_service import (
     get_facebook_status,
     reconnect_facebook_with_code,
 )
+from services.scheduler_config_service import get_scheduler_status
+import services.control_plane_service as control_plane
+from core.scheduler import get_scheduler_runtime_status
 from storage.approval_store import STATE_FILE as APPROVAL_STATE_FILE
 from storage.approval_store import get_current_job
 from storage.facebook_token_store import STATE_FILE as FACEBOOK_TOKEN_STATE_FILE
 
 
-APP_VERSION = "0.8.0"
+APP_VERSION = "0.8.3"
 STARTED_AT = datetime.now()
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_ROOT = (PROJECT_ROOT / "output").resolve()
 DEFAULT_DASHBOARD_HOST = "127.0.0.1"
 DEFAULT_DASHBOARD_PORT = 8787
+MAX_POST_BYTES = 1024 * 1024
+ACTION_PATHS = {
+    "/admin/action/update",
+    "/admin/action/approve",
+    "/admin/action/reject",
+    "/admin/action/retry_publish",
+    "/admin/action/modify",
+}
 
 
 def is_admin_dashboard_enabled():
@@ -32,6 +47,59 @@ def get_admin_dashboard_address():
     host = get_optional_env("ADMIN_DASHBOARD_HOST") or DEFAULT_DASHBOARD_HOST
     port = int(get_optional_env("ADMIN_DASHBOARD_PORT") or DEFAULT_DASHBOARD_PORT)
     return host, port
+
+
+def is_loopback_host(host):
+    return (host or "").strip().lower() in {
+        "127.0.0.1",
+        "localhost",
+        "::1",
+    }
+
+
+def is_admin_secret_configured():
+    return bool(get_optional_env("ADMIN_DASHBOARD_SECRET"))
+
+
+def dashboard_actions_enabled():
+    host, _ = get_admin_dashboard_address()
+    return is_admin_secret_configured() or is_loopback_host(host)
+
+
+def authorize_dashboard_action(provided_secret=None, host=None):
+    configured_secret = get_optional_env("ADMIN_DASHBOARD_SECRET")
+    bind_host = host or get_admin_dashboard_address()[0]
+
+    if configured_secret:
+        return bool(
+            provided_secret
+            and hmac.compare_digest(
+                str(provided_secret),
+                configured_secret,
+            )
+        )
+
+    return is_loopback_host(bind_host)
+
+
+def dispatch_dashboard_action(path, fields=None):
+    values = fields or {}
+
+    if path == "/admin/action/update":
+        return control_plane.generate_update()
+    if path == "/admin/action/approve":
+        return control_plane.approve_current_job()
+    if path == "/admin/action/reject":
+        return control_plane.reject_current_job()
+    if path == "/admin/action/retry_publish":
+        return control_plane.retry_publish()
+    if path == "/admin/action/modify":
+        return control_plane.modify_current_job(
+            headline=values.get("headline") or None,
+            caption=values.get("caption") or None,
+        )
+
+    raise ValueError("Unknown dashboard action.")
 
 
 def safe_text(value, fallback=""):
@@ -88,6 +156,9 @@ def current_job_summary():
             "provider": None,
             "last_error": None,
             "framing_decision": None,
+            "headline": None,
+            "facebook_caption": None,
+            "image": None,
         }
 
     return {
@@ -96,7 +167,34 @@ def current_job_summary():
         "provider": job.get("provider_display") or job.get("provider"),
         "last_error": job.get("last_error"),
         "framing_decision": job.get("framing_decision"),
+        "headline": job.get("headline"),
+        "facebook_caption": (
+            job.get("captions", {}).get("facebook")
+            or job.get("caption")
+        ),
+        "image": job.get("image"),
     }
+
+
+def get_current_image_path():
+    job = get_current_job() or {}
+    image_value = job.get("image")
+    if not image_value:
+        return None
+
+    candidate = Path(image_value)
+    if not candidate.is_absolute():
+        candidate = PROJECT_ROOT / candidate
+    candidate = candidate.resolve()
+
+    if not candidate.is_relative_to(OUTPUT_ROOT):
+        return None
+    if not candidate.is_file():
+        return None
+    if candidate.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+        return None
+
+    return candidate
 
 
 def safe_facebook_status():
@@ -127,11 +225,29 @@ def safe_template_status():
     }
 
 
-def get_last_error(job, facebook_status, template_status):
+def safe_scheduler_status():
+    status = get_scheduler_status()
+    runtime = get_scheduler_runtime_status()
+    return {
+        "enabled": status.get("enabled"),
+        "timezone": status.get("timezone"),
+        "enabled_job_count": status.get("enabled_job_count"),
+        "auto_reject_before_next_run": status.get(
+            "auto_reject_before_next_run"
+        ),
+        "enabled_jobs": status.get("enabled_jobs"),
+        "validation_status": status.get("validation_status"),
+        "last_validation_error": status.get("last_validation_error"),
+        "next_runs": runtime.get("registered_jobs"),
+    }
+
+
+def get_last_error(job, facebook_status, template_status, scheduler_status):
     return (
         job.get("last_error")
         or facebook_status.get("last_error")
         or template_status.get("last_validation_error")
+        or scheduler_status.get("last_validation_error")
     )
 
 
@@ -139,12 +255,20 @@ def build_health_payload():
     job = current_job_summary()
     facebook_status = safe_facebook_status()
     template_status = safe_template_status()
+    scheduler_status = safe_scheduler_status()
     state_files = get_state_file_status()
     facebook_health = facebook_status.get("status") not in {"invalid", "missing"}
     template_health = template_status.get("validation_status") == "valid"
+    scheduler_health = (
+        scheduler_status.get("validation_status") == "valid"
+    )
 
     return {
-        "ok": bool(facebook_health and template_health),
+        "ok": bool(
+            facebook_health
+            and template_health
+            and scheduler_health
+        ),
         "app_version": APP_VERSION,
         "started_at": STARTED_AT.isoformat(timespec="seconds"),
         "uptime_seconds": get_uptime_seconds(),
@@ -156,8 +280,16 @@ def build_health_payload():
         "current_job_status": job.get("status"),
         "current_job_id": job.get("job_id"),
         "current_provider": job.get("provider"),
+        "current_image_available": get_current_image_path() is not None,
         "framing_decision": job.get("framing_decision"),
-        "last_error": get_last_error(job, facebook_status, template_status),
+        "dashboard_actions_enabled": dashboard_actions_enabled(),
+        "admin_secret_configured": is_admin_secret_configured(),
+        "last_error": get_last_error(
+            job,
+            facebook_status,
+            template_status,
+            scheduler_status,
+        ),
         "facebook_status": {
             "source": facebook_status.get("token_source"),
             "status": facebook_status.get("status"),
@@ -168,6 +300,7 @@ def build_health_payload():
             "last_error": facebook_status.get("last_error"),
         },
         "template_status": template_status,
+        "scheduler_status": scheduler_status,
         "state_files_exist": state_files,
     }
 
@@ -288,6 +421,13 @@ def dashboard_script():
       setField("job.status", data.current_job_status);
       setField("job.id", data.current_job_id);
       setField("job.provider", data.current_provider);
+      const preview = document.querySelector("[data-current-image]");
+      if (preview) {
+        preview.hidden = !data.current_image_available;
+        if (data.current_image_available) {
+          preview.src = `/admin/current-image?v=${Date.now()}`;
+        }
+      }
       setField("facebook.configured_page_id", data.facebook_status?.configured_page_id);
       setField("facebook.page_name", data.facebook_status?.page_name);
       setField("facebook.source", data.facebook_status?.source);
@@ -300,6 +440,17 @@ def dashboard_script():
       setField("template.last_loaded", data.template_status?.last_loaded);
       setField("template.validation_status", data.template_status?.validation_status);
       setField("template.backup_count", data.template_status?.backup_count);
+      setField("scheduler.enabled", data.scheduler_status?.enabled);
+      setField("scheduler.timezone", data.scheduler_status?.timezone);
+      setField("scheduler.enabled_job_count", data.scheduler_status?.enabled_job_count);
+      setField("scheduler.auto_reject", data.scheduler_status?.auto_reject_before_next_run);
+      setField("scheduler.validation_status", data.scheduler_status?.validation_status);
+      setField(
+        "scheduler.next_runs",
+        (data.scheduler_status?.next_runs || [])
+          .map((job) => `${job.id}: ${job.next_run || "pending"}`)
+          .join(", ") || "none"
+      );
       setField(
         "state.approval_state",
         data.state_files_exist?.approval_state ? "exists" : "missing"
@@ -326,16 +477,39 @@ def dashboard_script():
 </script>"""
 
 
-def render_admin_page():
+def render_admin_page(message=None, message_is_error=False):
     job = current_job_summary()
     facebook_status = safe_facebook_status()
     template_status = safe_template_status()
+    scheduler_status = safe_scheduler_status()
     state_files = get_state_file_status()
-    last_error = get_last_error(job, facebook_status, template_status)
+    last_error = get_last_error(
+        job,
+        facebook_status,
+        template_status,
+        scheduler_status,
+    )
 
     current_status = job.get("status") or "none"
     facebook_state = facebook_status.get("status") or "unknown"
     template_state = template_status.get("validation_status") or "unknown"
+    scheduler_state = scheduler_status.get("validation_status") or "unknown"
+    framing_summary = (
+        json.dumps(job.get("framing_decision"), ensure_ascii=True)
+        if job.get("framing_decision")
+        else "None"
+    )
+    scheduler_policy = (
+        "enabled"
+        if scheduler_status.get("auto_reject_before_next_run")
+        else "disabled"
+    )
+    notice_html = ""
+    if message:
+        notice_class = "notice error" if message_is_error else "notice"
+        notice_html = (
+            f'<div class="{notice_class}">{html.escape(message)}</div>'
+        )
 
     page = f"""<!doctype html>
 <html lang="en">
@@ -370,6 +544,65 @@ def render_admin_page():
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 16px;
+    }}
+    .controls {{
+      margin-bottom: 16px;
+    }}
+    .action-row {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }}
+    form {{
+      margin: 0;
+    }}
+    label {{
+      display: block;
+      margin: 10px 0 5px;
+      font-weight: 600;
+    }}
+    input, textarea {{
+      box-sizing: border-box;
+      width: 100%;
+      padding: 9px;
+      border: 1px solid #b8c4ca;
+      border-radius: 5px;
+      font: inherit;
+    }}
+    textarea {{
+      min-height: 90px;
+      resize: vertical;
+    }}
+    button {{
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 5px;
+      background: #176b55;
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }}
+    button.danger {{
+      background: #a12b22;
+    }}
+    .notice {{
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border: 1px solid #9bcdbd;
+      border-radius: 6px;
+      background: #eaf7f2;
+      color: #174f3f;
+    }}
+    .image-preview {{
+      display: block;
+      width: min(100%, 420px);
+      aspect-ratio: 4 / 5;
+      object-fit: contain;
+      background: #111820;
+      border: 1px solid #d7e0e4;
+      border-radius: 6px;
     }}
     section {{
       background: #ffffff;
@@ -445,6 +678,16 @@ def render_admin_page():
         background: #171d21;
         border-color: #2b363c;
       }}
+      input, textarea {{
+        background: #101417;
+        color: #edf3f6;
+        border-color: #46545c;
+      }}
+      .notice {{
+        background: #12382d;
+        border-color: #276a55;
+        color: #b7ead8;
+      }}
       th, td {{
         border-top-color: #263139;
       }}
@@ -469,16 +712,60 @@ def render_admin_page():
 <body>
   <main>
     <h1>WeatherWatch Admin</h1>
-    <p class="subtle">Local read-only dashboard. Bind this behind an SSH tunnel on VPS.</p>
+    <p class="subtle">Local WeatherWatch control plane. Keep it behind an SSH tunnel on VPS.</p>
+    {notice_html}
     <div class="statusbar">
       <span class="pill">Job: <span data-field="job.status">{status_value(current_status)}</span></span>
       <span class="pill">Facebook: <span data-field="facebook.status">{status_value(facebook_state)}</span></span>
       <span class="pill">Template: <span data-field="template.validation_status">{status_value(template_state)}</span></span>
+      <span class="pill">Scheduler: <span data-field="scheduler.validation_status">{status_value(scheduler_state)}</span></span>
       <span class="last-refresh">
         Dashboard: <span data-field="dashboard.connection">connected</span>,
         refreshed <span data-field="dashboard.last_refreshed">on load</span>
       </span>
     </div>
+    <section class="controls">
+      <h2>Actions</h2>
+      <div class="action-row">
+        <form method="post" action="/admin/action/update">
+          <input type="password" name="admin_secret" placeholder="Admin secret" autocomplete="off">
+          <button type="submit">Generate Update</button>
+        </form>
+        <form method="post" action="/admin/action/approve">
+          <input type="password" name="admin_secret" placeholder="Admin secret" autocomplete="off">
+          <button type="submit">Approve</button>
+        </form>
+        <form method="post" action="/admin/action/reject">
+          <input type="password" name="admin_secret" placeholder="Admin secret" autocomplete="off">
+          <button class="danger" type="submit">Reject</button>
+        </form>
+        <form method="post" action="/admin/action/retry_publish">
+          <input type="password" name="admin_secret" placeholder="Admin secret" autocomplete="off">
+          <button type="submit">Retry Publish</button>
+        </form>
+      </div>
+      <form method="post" action="/admin/action/modify">
+        <label for="headline">GPX Headline</label>
+        <textarea id="headline" name="headline">{html.escape(job.get("headline") or "")}</textarea>
+        <label for="caption">Facebook Caption</label>
+        <textarea id="caption" name="caption">{html.escape(job.get("facebook_caption") or "")}</textarea>
+        <label for="modify-secret">Admin Secret</label>
+        <input id="modify-secret" type="password" name="admin_secret" autocomplete="off">
+        <div class="action-row" style="margin-top: 10px;">
+          <button type="submit">Save Modify</button>
+        </div>
+      </form>
+    </section>
+    <section class="controls">
+      <h2>Current Graphic Preview</h2>
+      <img
+        class="image-preview"
+        data-current-image
+        src="/admin/current-image"
+        alt="Current WeatherWatch graphic"
+        {"hidden" if get_current_image_path() is None else ""}
+      >
+    </section>
     <div class="grid">
       <section>
         <h2>App</h2>
@@ -494,6 +781,12 @@ def render_admin_page():
             ("Job ID", job.get("job_id"), "job.id"),
             ("Status", job.get("status"), "job.status"),
             ("Provider", job.get("provider"), "job.provider"),
+            ("Headline", job.get("headline"), "job.headline"),
+            ("Facebook Caption", job.get("facebook_caption"), "job.caption"),
+            ("Final Image", job.get("image"), "job.image"),
+            ("Framing", framing_summary, "job.framing"),
+            ("Pending Policy", scheduler_policy, "job.pending_policy"),
+            ("Last Error", job.get("last_error"), "job.last_error"),
         ])}</table>
       </section>
       <section>
@@ -524,6 +817,24 @@ def render_admin_page():
             ("Last Loaded", template_status.get("last_loaded"), "template.last_loaded"),
             ("Validation", template_status.get("validation_status"), "template.validation_status"),
             ("Backups", template_status.get("backup_count"), "template.backup_count"),
+        ])}</table>
+      </section>
+      <section>
+        <h2>Scheduler</h2>
+        <table>{dynamic_table_rows([
+            ("Enabled", scheduler_status.get("enabled"), "scheduler.enabled"),
+            ("Timezone", scheduler_status.get("timezone"), "scheduler.timezone"),
+            ("Enabled Jobs", scheduler_status.get("enabled_job_count"), "scheduler.enabled_job_count"),
+            ("Auto-Reject Pending", scheduler_status.get("auto_reject_before_next_run"), "scheduler.auto_reject"),
+            ("Validation", scheduler_status.get("validation_status"), "scheduler.validation_status"),
+            (
+                "Next Runs",
+                ", ".join(
+                    f"{job.get('id')}: {job.get('next_run') or 'pending'}"
+                    for job in scheduler_status.get("next_runs", [])
+                ) or "none",
+                "scheduler.next_runs",
+            ),
         ])}</table>
       </section>
       <section>
@@ -576,19 +887,83 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
         self.send_content(status, "application/json; charset=utf-8", content)
 
     def redirect(self, url):
-        self.send_response(302)
+        self.send_response(303)
         self.send_header("Location", url)
         self.end_headers()
+
+    def send_current_image(self):
+        image_path = get_current_image_path()
+        if image_path is None:
+            self.send_html(
+                404,
+                render_simple_page(
+                    "Image Not Found",
+                    "No current graphic preview is available.",
+                ),
+            )
+            return
+
+        content_type = (
+            "image/png"
+            if image_path.suffix.lower() == ".png"
+            else "image/jpeg"
+        )
+        content = image_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(content)
+
+    def redirect_with_message(self, message, is_error=False):
+        query = urlencode({
+            "message": safe_text(message),
+            "error": "1" if is_error else "0",
+        })
+        self.redirect(f"/admin?{query}")
+
+    def read_form_fields(self):
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            raise ValueError("Invalid request length.")
+
+        if content_length < 0 or content_length > MAX_POST_BYTES:
+            raise ValueError("Request is too large.")
+
+        raw_body = self.rfile.read(content_length).decode(
+            "utf-8",
+            errors="replace",
+        )
+        parsed = parse_qs(raw_body, keep_blank_values=True)
+        return {
+            key: values[0] if values else ""
+            for key, values in parsed.items()
+        }
 
     def do_GET(self):
         parsed = urlparse(self.path)
 
         if parsed.path == "/admin":
-            self.send_html(200, render_admin_page())
+            query = parse_qs(parsed.query)
+            message = query.get("message", [None])[0]
+            message_is_error = query.get("error", ["0"])[0] == "1"
+            self.send_html(
+                200,
+                render_admin_page(
+                    message=message,
+                    message_is_error=message_is_error,
+                ),
+            )
             return
 
         if parsed.path == "/health":
             self.send_json(200, build_health_payload())
+            return
+
+        if parsed.path == "/admin/current-image":
+            self.send_current_image()
             return
 
         if parsed.path == "/admin/fb/connect":
@@ -600,6 +975,74 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
             return
 
         self.send_html(404, render_simple_page("Not Found", "Unknown admin route."))
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path not in ACTION_PATHS:
+            self.send_html(
+                404,
+                render_simple_page("Not Found", "Unknown admin action."),
+            )
+            return
+
+        try:
+            fields = self.read_form_fields()
+        except ValueError as error:
+            self.send_html(
+                400,
+                render_simple_page("Invalid Request", str(error)),
+            )
+            return
+
+        provided_secret = (
+            self.headers.get("X-WW-Admin-Secret")
+            or fields.pop("admin_secret", None)
+        )
+        bind_host = self.server.server_address[0]
+        if not authorize_dashboard_action(
+            provided_secret=provided_secret,
+            host=bind_host,
+        ):
+            self.send_html(
+                403,
+                render_simple_page(
+                    "Forbidden",
+                    "Dashboard action is not authorized.",
+                ),
+            )
+            return
+
+        try:
+            result = dispatch_dashboard_action(parsed.path, fields)
+        except Exception as error:
+            self.redirect_with_message(
+                f"Action failed: {safe_text(error)}",
+                is_error=True,
+            )
+            return
+
+        if parsed.path == "/admin/action/update":
+            message = (
+                "Weather update skipped because a current job exists."
+                if isinstance(result, dict) and result.get("skipped")
+                else "Weather update generated."
+            )
+        elif parsed.path == "/admin/action/approve":
+            message = (
+                "Current job approved and published. "
+                f"Post ID: {result.get('facebook_post_id') or 'unknown'}"
+            )
+        elif parsed.path == "/admin/action/reject":
+            message = f"Job {result.get('job_id')} rejected."
+        elif parsed.path == "/admin/action/retry_publish":
+            message = (
+                "Facebook publish retried successfully. "
+                f"Post ID: {result.get('facebook_post_id') or 'unknown'}"
+            )
+        else:
+            message = "Current job modified."
+
+        self.redirect_with_message(message)
 
     def handle_facebook_callback(self, parsed):
         query = parse_qs(parsed.query)

@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "enabled": true,
+  "timezone": "Asia/Manila",
+  "pending_job_policy": {
+    "auto_reject_before_next_run": true,
+    "reject_statuses": [
+      "pending",
+      "modified"
+    ]
+  },
+  "jobs": [
+    {
+      "id": "morning_update",
+      "enabled": true,
+      "time": "05:00",
+      "action": "weather_update",
+      "provider": "default",
+      "skip_if_pending_job_exists": true
+    },
+    {
+      "id": "midday_update",
+      "enabled": true,
+      "time": "11:00",
+      "action": "weather_update",
+      "provider": "default",
+      "skip_if_pending_job_exists": true
+    },
+    {
+      "id": "evening_update",
+      "enabled": true,
+      "time": "17:00",
+      "action": "weather_update",
+      "provider": "default",
+      "skip_if_pending_job_exists": true
+    }
+  ]
+}

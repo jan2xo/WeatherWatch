@@ -108,6 +108,7 @@ OPENAI_API_KEY=
 ADMIN_DASHBOARD_ENABLED=true
 ADMIN_DASHBOARD_HOST=127.0.0.1
 ADMIN_DASHBOARD_PORT=8787
+ADMIN_DASHBOARD_SECRET=
 ```
 
 Security notes:
@@ -116,6 +117,7 @@ Security notes:
 - Never upload `.env` publicly.
 - Keep `.env` permissions at `chmod 600 .env`.
 - Dashboard should stay bound to `127.0.0.1`.
+- Set `ADMIN_DASHBOARD_SECRET` before enabling dashboard POST controls on any non-loopback bind.
 
 ## Verify Install
 
@@ -180,10 +182,15 @@ The dashboard page updates dynamically without a full browser refresh:
 - uptime updates locally in the browser every second
 - dashboard status refreshes from `/health` every 10 seconds
 - `/health` returns local state summaries only and does not expose secrets
+- POST controls can generate, approve, reject, retry, and modify the current job
+- `ADMIN_DASHBOARD_SECRET` protects POST actions when configured
 
-Warning: do not expose port `8787` publicly unless authentication, firewall, and reverse proxy protection are added later.
+Warning: do not expose port `8787` publicly. The dashboard shared secret is
+not a substitute for HTTPS, firewall rules, and reverse-proxy protection.
 
-If `ADMIN_DASHBOARD_HOST` is changed to `0.0.0.0`, protect it with a firewall, reverse proxy authentication, or another access control layer before deploying.
+If `ADMIN_DASHBOARD_HOST` is changed to `0.0.0.0`, set
+`ADMIN_DASHBOARD_SECRET` and protect the service with a firewall, HTTPS reverse
+proxy, and additional access controls.
 
 ## Telegram Verification Checklist
 
@@ -278,5 +285,5 @@ Possible future improvements, not implemented in v0.7.6:
 - private repo bootstrap installer
 - auto-update
 - Docker
-- public dashboard with auth
+- user-account authentication and CSRF protection
 - database migration

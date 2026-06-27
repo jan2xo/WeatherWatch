@@ -72,6 +72,8 @@ create_runtime_folders() {
     data/composer_uploads \
     data/image_rendering_backups \
     data/image_rendering_uploads \
+    data/scheduler_backups \
+    data/scheduler_uploads \
     output \
     logs \
     backups

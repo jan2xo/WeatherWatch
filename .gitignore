@@ -11,6 +11,8 @@ data/composer_backups/
 data/composer_uploads/
 data/image_rendering_backups/
 data/image_rendering_uploads/
+data/scheduler_backups/
+data/scheduler_uploads/
 logs/
 backups/
 dist/

@@ -16,7 +16,10 @@ from telegram.ext import (
     filters,
 )
 
-from core.app import WeatherWatch
+from core.scheduler import (
+    get_scheduler_runtime_status,
+    refresh_scheduler,
+)
 from services.image_service import run_image_job
 from services.image_rendering_service import (
     CONFIG_PATH as IMAGE_RENDERING_CONFIG_PATH,
@@ -37,8 +40,13 @@ from services.facebook_admin_service import get_admin_connect_url
 from services.facebook_service import (
     check_facebook_token_health,
     get_facebook_status,
-    publish_current_job,
     save_manual_page_access_token,
+)
+from services.control_plane_service import (
+    approve_current_job as control_approve_current_job,
+    generate_update,
+    reject_current_job as control_reject_current_job,
+    retry_publish as control_retry_publish,
 )
 from services.caption_template_service import (
     TEMPLATE_PATH,
@@ -61,6 +69,17 @@ from services.content_composer_config_service import (
     starter_composer_json,
     load_composer_config_file,
 )
+from services.scheduler_config_service import (
+    CONFIG_PATH as SCHEDULER_CONFIG_PATH,
+    MAX_SCHEDULER_UPLOAD_BYTES,
+    UPLOAD_DIR as SCHEDULER_UPLOAD_DIR,
+    get_scheduler_status,
+    load_scheduler_config_file,
+    reload_scheduler_config,
+    replace_scheduler_config_from_file,
+    scheduler_json_preview,
+    starter_scheduler_json,
+)
 from config.settings import (
     get_required_env,
     parse_env_id_list,
@@ -68,8 +87,6 @@ from config.settings import (
 from storage.file_retention import cleanup_manual_inputs
 from storage.approval_store import (
     get_current_job,
-    approve_current_job,
-    reject_current_job,
     update_current_job,
 )
 
@@ -395,6 +412,8 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use /composer_manual for editable weather wording and composer configuration.\n\n"
         "Image rendering tools:\n"
         "Use /image_manual for manual image fit and intelligent map framing configuration.\n\n"
+        "Scheduler tools:\n"
+        "Use /scheduler_manual for scheduled update configuration.\n\n"
         "VPS backup reminder:\n"
         "state/ is gitignored but must be backed up. Important files: state/approval_state.json and state/facebook_token_state.json."
     )
@@ -598,6 +617,186 @@ async def image_fit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Mode: {status['fit_mode']}\n"
         f"Canvas: {status['target_width']}x{status['target_height']}\n\n"
         "This applies to future manual Telegram image uploads."
+    )
+
+
+async def scheduler_manual_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "Scheduler Manual\n\n"
+        "Scheduler configuration controls automatic weather-update times without editing Python code.\n\n"
+        "Each job has an ID, enabled state, 24-hour HH:MM time, action, provider field, and pending-job skip policy.\n"
+        "When auto_reject_before_next_run is enabled, stale pending or modified jobs are rejected immediately before the next scheduled update. Approved and publishing jobs are never auto-rejected.\n"
+        "Supported action: weather_update\n"
+        "Timezone uses an IANA name such as Asia/Manila.\n\n"
+        "Commands:\n"
+        "/scheduler_status - Show scheduler health and enabled jobs.\n"
+        "/scheduler_show - Show the active scheduler JSON.\n"
+        "/scheduler_builder - Show starter scheduler JSON.\n"
+        "/scheduler_validate - Validate the saved JSON.\n"
+        "/scheduler_reload - Reload JSON and refresh registered jobs.\n"
+        "/scheduler_upload - Upload, validate, back up, replace, and refresh scheduler JSON.\n\n"
+        "Uploads must be JSON and no larger than 100 KB."
+    )
+
+
+def format_scheduler_status(status):
+    runtime = get_scheduler_runtime_status()
+    enabled_jobs = status.get("enabled_jobs") or []
+    configured = ", ".join(
+        f"{job['id']}@{job['time']}" for job in enabled_jobs
+    ) or "None"
+    next_runs = ", ".join(
+        f"{job['id']}={job['next_run'] or 'pending'}"
+        for job in runtime.get("registered_jobs", [])
+    ) or "None"
+
+    return (
+        "Scheduler Status\n\n"
+        f"Config: {status.get('config_path')}\n"
+        f"Version: {status.get('version') or 'Unknown'}\n"
+        f"Enabled: {status.get('enabled')}\n"
+        f"Timezone: {status.get('timezone')}\n"
+        f"Validation: {status.get('validation_status')}\n"
+        f"Last loaded: {status.get('last_loaded') or 'Never'}\n"
+        f"Last error: {status.get('last_validation_error') or 'None'}\n"
+        f"Enabled jobs: {status.get('enabled_job_count', 0)}\n"
+        f"Auto-reject before next run: {status.get('auto_reject_before_next_run')}\n"
+        f"Auto-reject statuses: {', '.join(status.get('auto_reject_statuses') or []) or 'None'}\n"
+        f"Configured: {configured}\n"
+        f"Next runs: {next_runs}"
+    )
+
+
+async def scheduler_status_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        format_scheduler_status(get_scheduler_status())
+    )
+
+
+async def scheduler_show_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        text = scheduler_json_preview()
+    except Exception as error:
+        await update.message.reply_text(
+            f"Scheduler preview failed: {error}"
+        )
+        return
+
+    await update.message.reply_text(
+        f"<pre>{html.escape(text, quote=False)}</pre>",
+        parse_mode="HTML",
+    )
+
+
+async def scheduler_builder_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        f"<pre>{html.escape(starter_scheduler_json(), quote=False)}</pre>",
+        parse_mode="HTML",
+    )
+
+
+async def scheduler_validate_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        load_scheduler_config_file(SCHEDULER_CONFIG_PATH)
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Scheduler validation failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text("✅ Scheduler configuration is valid.")
+
+
+async def scheduler_reload_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        reload_scheduler_config()
+        refresh_scheduler()
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Scheduler reload failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text(
+        "✅ Scheduler configuration reloaded and jobs refreshed.\n\n"
+        f"{format_scheduler_status(get_scheduler_status())}"
+    )
+
+
+async def scheduler_upload_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    message = update.message
+
+    if not message.document:
+        await message.reply_text(
+            "Attach a JSON file with this command:\n\n/scheduler_upload"
+        )
+        return
+
+    document = message.document
+    filename = document.file_name or ""
+    if not filename.lower().endswith(".json"):
+        await message.reply_text(
+            "Upload rejected. The attached file must be JSON."
+        )
+        return
+    if document.file_size and document.file_size > MAX_SCHEDULER_UPLOAD_BYTES:
+        await message.reply_text("Scheduler upload rejected: file too large.")
+        return
+
+    temp_path = (
+        SCHEDULER_UPLOAD_DIR
+        / f"scheduler_upload.{uuid.uuid4().hex}.json"
+    )
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        file = await context.bot.get_file(document.file_id)
+        await file.download_to_drive(str(temp_path))
+        await asyncio.to_thread(
+            replace_scheduler_config_from_file,
+            temp_path,
+        )
+        refresh_scheduler()
+    except json.JSONDecodeError:
+        await message.reply_text(
+            "⚠️ Scheduler upload failed. JSON could not be parsed."
+        )
+        return
+    except ValueError as error:
+        await message.reply_text(
+            f"⚠️ Scheduler upload failed.\n\n{error}"
+        )
+        return
+    except Exception:
+        await message.reply_text("⚠️ Scheduler upload failed safely.")
+        return
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    await message.reply_text(
+        "✅ Scheduler configuration uploaded and jobs refreshed.\n\n"
+        f"{format_scheduler_status(get_scheduler_status())}"
     )
 
 
@@ -927,6 +1126,12 @@ async def config_upload_document_handler(
         re.IGNORECASE,
     ):
         handler = image_upload_command
+    elif re.match(
+        r"^\s*/scheduler_upload(?:@\w+)?(?:\s|$)",
+        caption,
+        re.IGNORECASE,
+    ):
+        handler = scheduler_upload_command
     else:
         return
 
@@ -961,7 +1166,7 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🌦 Fetching the latest weather data...")
 
     try:
-        result = await asyncio.to_thread(WeatherWatch().update)
+        result = await asyncio.to_thread(generate_update)
 
         if isinstance(result, dict) and result.get("skipped"):
             current_job = result.get("current_job", {})
@@ -987,52 +1192,27 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    job = approve_current_job()
-
-    if not job:
-        await update.message.reply_text("No current job to approve.")
-        return
-
-    await update.message.reply_text(
-        f"✅ Approved current job: {job['job_id']}\n\n"
-        "Publishing to Facebook..."
-    )
-
     try:
-        result = await asyncio.to_thread(publish_current_job)
+        result = await asyncio.to_thread(control_approve_current_job)
 
         await update.message.reply_text(
+            f"✅ Approved current job: {result.get('job_id')}\n\n"
             "🚀 Published to Facebook.\n\n"
             f"Post ID: {result.get('facebook_post_id')}"
         )
 
     except Exception as error:
         await update.message.reply_text(
-            f"⚠️ Approved, but Facebook publish failed.\n\n{error}"
+            f"⚠️ Approval or Facebook publish failed.\n\n{error}"
         )
 
 
 async def retry_publish_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    job = get_current_job()
-
-    if not job:
-        await update.message.reply_text("No current job to publish.")
-        return
-
-    if job.get("status") not in {"approved", "publish_failed"}:
-        await send_job_preview(update, job, (
-            f"Current job is not ready for retry. Status: {job.get('status')}"
-        ))
-        return
-
-    await update.message.reply_text(
-        f"🔁 Retrying Facebook publish for job: {job['job_id']}"
-    )
-
     try:
-        result = await asyncio.to_thread(publish_current_job)
+        result = await asyncio.to_thread(control_retry_publish)
 
         await update.message.reply_text(
+            f"🔁 Retried Facebook publish for job: {result.get('job_id')}\n\n"
             "🚀 Published to Facebook.\n\n"
             f"Post ID: {result.get('facebook_post_id')}"
         )
@@ -1133,13 +1313,15 @@ async def fb_set_token_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def reject_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ok = reject_current_job()
-
-    if not ok:
-        await update.message.reply_text("No current job to reject.")
+    try:
+        result = await asyncio.to_thread(control_reject_current_job)
+    except Exception as error:
+        await update.message.reply_text(f"⚠️ Reject failed.\n\n{error}")
         return
 
-    await update.message.reply_text("❌ Current job rejected and moved to history.")
+    await update.message.reply_text(
+        f"❌ Job {result.get('job_id')} rejected and moved to history."
+    )
 
 
 async def modify_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1272,6 +1454,13 @@ def build_telegram_app():
     app.add_handler(CommandHandler("image_validate", admin_command(image_validate_command)))
     app.add_handler(CommandHandler("image_reload", admin_command(image_reload_command)))
     app.add_handler(CommandHandler("image_upload", admin_command(image_upload_command)))
+    app.add_handler(CommandHandler("scheduler_manual", admin_command(scheduler_manual_command)))
+    app.add_handler(CommandHandler("scheduler_status", admin_command(scheduler_status_command)))
+    app.add_handler(CommandHandler("scheduler_show", admin_command(scheduler_show_command)))
+    app.add_handler(CommandHandler("scheduler_builder", admin_command(scheduler_builder_command)))
+    app.add_handler(CommandHandler("scheduler_validate", admin_command(scheduler_validate_command)))
+    app.add_handler(CommandHandler("scheduler_reload", admin_command(scheduler_reload_command)))
+    app.add_handler(CommandHandler("scheduler_upload", admin_command(scheduler_upload_command)))
     app.add_handler(CommandHandler("template_manual", admin_command(template_manual_command)))
     app.add_handler(CommandHandler("template_status", admin_command(template_status_command)))
     app.add_handler(CommandHandler("template_show", admin_command(template_show_command)))

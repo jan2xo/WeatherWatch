@@ -12,7 +12,7 @@ Rather than being a simple weather bot, WeatherWatch is designed as a production
 
 **Version**
 
-`v0.7.7`
+`v0.8.3`
 
 **Status**
 
@@ -181,6 +181,7 @@ Admin Dashboard
 | CHANGELOG.md           | Version history         |
 | VERSION                | Current project version |
 | docs/VPS_DEPLOYMENT.md | VPS deployment guide    |
+| docs/FEATURES_AND_EXTENSION_GUIDE.md | Complete feature and extension reference |
 
 ---
 
