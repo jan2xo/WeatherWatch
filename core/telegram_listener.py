@@ -17,6 +17,12 @@ from telegram.ext import (
 
 from core.app import WeatherWatch
 from services.image_service import run_image_job
+from services.image_rendering_service import (
+    SUPPORTED_FIT_MODES,
+    get_image_rendering_status,
+    render_manual_image,
+    set_fit_mode,
+)
 from services.telegram_service import run_telegram_job
 from services.facebook_admin_service import get_admin_connect_url
 from services.facebook_service import (
@@ -365,8 +371,76 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Attach a photo with /modify to replace the raw image and regenerate the GPX graphic.\n\n"
         "Template tools:\n"
         "Use /template_manual for caption template editing, validation, upload, and reload commands.\n\n"
+        "Image Rendering:\n"
+        "Use /image_manual for image rendering configuration and commands.\n\n"
         "VPS backup reminder:\n"
         "state/ is gitignored but must be backed up. Important files: state/approval_state.json and state/facebook_token_state.json."
+    )
+
+
+async def image_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Image Rendering Manual\n\n"
+        "The image renderer controls how manually uploaded Telegram photos fit the GPX canvas.\n\n"
+        "Commands:\n"
+        "/image_fit - Show the current mode and canvas size.\n"
+        "/image_fit stretch - Resize directly to the canvas. This legacy mode may distort images.\n"
+        "/image_fit smartfit - Preserve aspect ratio, fill the canvas, and crop evenly from the center. Recommended.\n"
+        "/image_fit crop - Keep original pixels and take a centered crop. Small images safely use smartfit.\n\n"
+        "Examples:\n"
+        "Use smartfit for most mobile screenshots and photos.\n"
+        "Use crop when the source is larger than 1080x1350 and its center is already framed correctly.\n"
+        "Use stretch only when matching the legacy output is necessary.\n\n"
+        "Important:\n"
+        "Only manually uploaded Telegram images are affected.\n"
+        "Automatic weather captures are not affected.\n"
+        "Output always remains 1080x1350.\n"
+        "The selected mode persists across restarts.\n"
+        "These commands are protected by the Telegram admin allowlist."
+    )
+
+
+def format_image_fit_status(status):
+    modes = "\n".join(status["available_modes"])
+    return (
+        "Current Image Rendering\n\n"
+        "Mode:\n"
+        f"{status['fit_mode']}\n\n"
+        "Canvas:\n"
+        f"{status['target_width']}x{status['target_height']}\n\n"
+        "Available Modes:\n"
+        f"{modes}"
+    )
+
+
+async def image_fit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text(
+            format_image_fit_status(get_image_rendering_status())
+        )
+        return
+
+    mode = context.args[0].strip().lower()
+
+    if len(context.args) != 1 or mode not in SUPPORTED_FIT_MODES:
+        await update.message.reply_text(
+            "Unsupported mode. Use /image_fit stretch, /image_fit smartfit, or /image_fit crop."
+        )
+        return
+
+    try:
+        status = set_fit_mode(mode)
+    except (OSError, ValueError):
+        await update.message.reply_text(
+            "Image rendering mode could not be saved. The current mode was not changed."
+        )
+        return
+
+    await update.message.reply_text(
+        "Image rendering mode updated.\n\n"
+        f"Mode: {status['fit_mode']}\n"
+        f"Canvas: {status['target_width']}x{status['target_height']}\n\n"
+        "This applies to future manual Telegram image uploads."
     )
 
 
@@ -737,6 +811,7 @@ async def modify_message_handler(update: Update, context: ContextTypes.DEFAULT_T
 
         image_path = output_dir / f"{current['job_id']}_manual.jpg"
         await file.download_to_drive(str(image_path))
+        await asyncio.to_thread(render_manual_image, image_path)
 
         updates["raw_image"] = str(image_path)
         cleanup_manual_inputs()
@@ -829,6 +904,8 @@ def build_telegram_app():
     app.add_handler(CommandHandler("fbstatus", admin_command(fbstatus_command)))
     app.add_handler(CommandHandler("fb_reconnect", admin_command(fb_reconnect_command)))
     app.add_handler(CommandHandler("fb_set_token", admin_command(fb_set_token_command)))
+    app.add_handler(CommandHandler("image_manual", admin_command(image_manual_command)))
+    app.add_handler(CommandHandler("image_fit", admin_command(image_fit_command)))
     app.add_handler(CommandHandler("template_manual", admin_command(template_manual_command)))
     app.add_handler(CommandHandler("template_status", admin_command(template_status_command)))
     app.add_handler(CommandHandler("template_show", admin_command(template_show_command)))
