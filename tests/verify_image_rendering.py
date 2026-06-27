@@ -100,7 +100,7 @@ def run():
             encoding="utf-8",
         )
         fallback = load_config(config_path=config_path)
-        assert fallback["fit_mode"] == "smartfit"
+        assert fallback["manual_image"]["fit_mode"] == "smartfit"
         assert apply_image_fit(
             make_quadrant_image((1200, 800)),
             config_path=config_path,

@@ -17,7 +17,7 @@ from storage.approval_store import get_current_job
 from storage.facebook_token_store import STATE_FILE as FACEBOOK_TOKEN_STATE_FILE
 
 
-APP_VERSION = "0.7.5"
+APP_VERSION = "0.8.0"
 STARTED_AT = datetime.now()
 DEFAULT_DASHBOARD_HOST = "127.0.0.1"
 DEFAULT_DASHBOARD_PORT = 8787
@@ -87,6 +87,7 @@ def current_job_summary():
             "status": "none",
             "provider": None,
             "last_error": None,
+            "framing_decision": None,
         }
 
     return {
@@ -94,6 +95,7 @@ def current_job_summary():
         "status": job.get("status"),
         "provider": job.get("provider_display") or job.get("provider"),
         "last_error": job.get("last_error"),
+        "framing_decision": job.get("framing_decision"),
     }
 
 
@@ -154,6 +156,7 @@ def build_health_payload():
         "current_job_status": job.get("status"),
         "current_job_id": job.get("job_id"),
         "current_provider": job.get("provider"),
+        "framing_decision": job.get("framing_decision"),
         "last_error": get_last_error(job, facebook_status, template_status),
         "facebook_status": {
             "source": facebook_status.get("token_source"),

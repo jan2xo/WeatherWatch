@@ -1,5 +1,103 @@
 {
-  "fit_mode": "smartfit",
-  "target_width": 1080,
-  "target_height": 1350
+  "version": "1.0",
+  "manual_image": {
+    "fit_mode": "smartfit",
+    "target_width": 1080,
+    "target_height": 1350
+  },
+  "auto_map": {
+    "enabled": true,
+    "target_width": 1080,
+    "target_height": 1350,
+    "framing": {
+      "enabled": true,
+      "default": {
+        "strategy": "region",
+        "region_id": "philippines",
+        "zoom": 5,
+        "pan_x": 0,
+        "pan_y": 0,
+        "reason": "Default Philippines framing"
+      },
+      "regions": {
+        "philippines": {
+          "center_lat": 12.8797,
+          "center_lon": 121.774,
+          "zoom": 5
+        },
+        "luzon": {
+          "center_lat": 16.0,
+          "center_lon": 121.0,
+          "zoom": 6
+        },
+        "visayas": {
+          "center_lat": 10.5,
+          "center_lon": 123.5,
+          "zoom": 6
+        },
+        "luzon_visayas": {
+          "center_lat": 13.5,
+          "center_lon": 122.5,
+          "zoom": 5
+        },
+        "mindanao": {
+          "center_lat": 7.8,
+          "center_lon": 125.0,
+          "zoom": 6
+        },
+        "northern_luzon": {
+          "center_lat": 17.5,
+          "center_lon": 121.5,
+          "zoom": 6
+        }
+      },
+      "situations": {
+        "monsoon_southwest": {
+          "aliases": [
+            "Southwest Monsoon",
+            "Habagat",
+            "Southwest Monsoon (Habagat)"
+          ],
+          "strategy": "region",
+          "region_id": "luzon_visayas",
+          "zoom": 5,
+          "pan_x": 0,
+          "pan_y": 0,
+          "reason": "Habagat affecting Luzon and Visayas"
+        },
+        "monsoon_northeast": {
+          "aliases": [
+            "Northeast Monsoon",
+            "Amihan",
+            "Northeast Monsoon (Amihan)"
+          ],
+          "strategy": "region",
+          "region_id": "northern_luzon",
+          "zoom": 6,
+          "pan_x": 0,
+          "pan_y": 0,
+          "reason": "Amihan affecting Northern Luzon"
+        },
+        "lpa": {
+          "aliases": [
+            "Low Pressure Area",
+            "LPA"
+          ],
+          "strategy": "weather_system",
+          "zoom": 5,
+          "include_nearest_landmass": true,
+          "pan_x": 0,
+          "pan_y": 0,
+          "reason": "LPA detected"
+        },
+        "cyclone": {
+          "strategy": "weather_system",
+          "zoom": 5,
+          "pan_x": 0,
+          "pan_y": 0,
+          "reason": "Cyclone coordinates detected"
+        }
+      }
+    }
+  }
 }

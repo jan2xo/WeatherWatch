@@ -68,6 +68,10 @@ create_runtime_folders() {
     data \
     data/template_backups \
     data/template_uploads \
+    data/composer_backups \
+    data/composer_uploads \
+    data/image_rendering_backups \
+    data/image_rendering_uploads \
     output \
     logs \
     backups

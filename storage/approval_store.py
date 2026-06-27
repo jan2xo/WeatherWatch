@@ -94,6 +94,7 @@ def create_current_job(job):
         ),
         "image": job.get("final_output_path"),
         "raw_image": job.get("raw_output_path"),
+        "framing_decision": job.get("framing_decision"),
     }
 
     state["current"] = current

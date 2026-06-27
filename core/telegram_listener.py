@@ -19,10 +19,18 @@ from telegram.ext import (
 from core.app import WeatherWatch
 from services.image_service import run_image_job
 from services.image_rendering_service import (
+    CONFIG_PATH as IMAGE_RENDERING_CONFIG_PATH,
+    MAX_IMAGE_RENDERING_UPLOAD_BYTES,
     SUPPORTED_FIT_MODES,
+    UPLOAD_DIR as IMAGE_RENDERING_UPLOAD_DIR,
+    config_json_preview,
     get_image_rendering_status,
+    load_config_file as load_image_rendering_config_file,
+    reload_config as reload_image_rendering_config,
+    replace_config_from_file as replace_image_rendering_config_from_file,
     render_manual_image,
     set_fit_mode,
+    starter_config_json,
 )
 from services.telegram_service import run_telegram_job
 from services.facebook_admin_service import get_admin_connect_url
@@ -385,8 +393,8 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use /template_manual for caption template editing, validation, upload, and reload commands.\n\n"
         "Content composer tools:\n"
         "Use /composer_manual for editable weather wording and composer configuration.\n\n"
-        "Image Rendering:\n"
-        "Use /image_manual for image rendering configuration and commands.\n\n"
+        "Image rendering tools:\n"
+        "Use /image_manual for manual image fit and intelligent map framing configuration.\n\n"
         "VPS backup reminder:\n"
         "state/ is gitignored but must be backed up. Important files: state/approval_state.json and state/facebook_token_state.json."
     )
@@ -395,22 +403,20 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def image_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Image Rendering Manual\n\n"
-        "The image renderer controls how manually uploaded Telegram photos fit the GPX canvas.\n\n"
+        "This configuration controls manual Telegram images and intelligent framing metadata for automatic weather maps.\n\n"
+        "manual_image:\n"
+        "Controls only user-submitted photos and screenshots. Available fit modes are stretch, smartfit, and crop.\n\n"
+        "auto_map:\n"
+        "Uses parsed PAGASA conditions to choose configured regions, zoom, and pan values for automatic provider maps. Browser movement is not applied in this phase.\n\n"
         "Commands:\n"
-        "/image_fit - Show the current mode and canvas size.\n"
-        "/image_fit stretch - Resize directly to the canvas. This legacy mode may distort images.\n"
-        "/image_fit smartfit - Preserve aspect ratio, fill the canvas, and crop evenly from the center. Recommended.\n"
-        "/image_fit crop - Keep original pixels and take a centered crop. Small images safely use smartfit.\n\n"
-        "Examples:\n"
-        "Use smartfit for most mobile screenshots and photos.\n"
-        "Use crop when the source is larger than 1080x1350 and its center is already framed correctly.\n"
-        "Use stretch only when matching the legacy output is necessary.\n\n"
-        "Important:\n"
-        "Only manually uploaded Telegram images are affected.\n"
-        "Automatic weather captures are not affected.\n"
-        "Output always remains 1080x1350.\n"
-        "The selected mode persists across restarts.\n"
-        "These commands are protected by the Telegram admin allowlist."
+        "/image_fit [stretch|smartfit|crop] - View or change manual fit only.\n"
+        "/image_status - Show manual and auto-map configuration status.\n"
+        "/image_show - Show the current JSON.\n"
+        "/image_builder - Get starter JSON.\n"
+        "/image_validate - Validate the saved JSON.\n"
+        "/image_reload - Reload valid JSON without restarting.\n"
+        "/image_upload - Upload replacement JSON as an attachment.\n\n"
+        "Output remains 1080x1350. All commands are protected by the Telegram admin allowlist."
     )
 
 
@@ -424,6 +430,143 @@ def format_image_fit_status(status):
         f"{status['target_width']}x{status['target_height']}\n\n"
         "Available Modes:\n"
         f"{modes}"
+    )
+
+
+def format_image_status(status):
+    default = status.get("default_framing") or {}
+    situations = ", ".join(status.get("framing_situations") or ()) or "None"
+    return (
+        "Image Rendering Status\n\n"
+        f"Config: {status.get('config_path')}\n"
+        f"Version: {status.get('version') or 'Unknown'}\n"
+        f"Validation: {status.get('validation_status')}\n"
+        f"Last loaded: {status.get('last_loaded') or 'Never'}\n"
+        f"Last error: {status.get('last_validation_error') or 'None'}\n\n"
+        f"Manual mode: {status.get('fit_mode')}\n"
+        f"Manual canvas: {status.get('target_width')}x{status.get('target_height')}\n\n"
+        f"Auto map enabled: {status.get('auto_map_enabled')}\n"
+        f"Framing enabled: {status.get('framing_enabled')}\n"
+        f"Default framing: {default.get('region_id')} at zoom {default.get('zoom')}\n"
+        f"Situations: {situations}"
+    )
+
+
+async def image_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        format_image_status(get_image_rendering_status())
+    )
+
+
+async def image_show_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        text = config_json_preview()
+    except Exception as error:
+        await update.message.reply_text(
+            f"Image rendering preview failed: {error}"
+        )
+        return
+
+    await update.message.reply_text(
+        f"<pre>{html.escape(text, quote=False)}</pre>",
+        parse_mode="HTML",
+    )
+
+
+async def image_builder_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = starter_config_json()
+    document = io.BytesIO(text.encode("utf-8"))
+    document.name = "image_rendering.starter.json"
+    await update.message.reply_document(
+        document=document,
+        filename="image_rendering.starter.json",
+        caption="Starter manual-image and auto-map configuration.",
+    )
+
+
+async def image_validate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        load_image_rendering_config_file(IMAGE_RENDERING_CONFIG_PATH)
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Image rendering validation failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text("✅ Image rendering configuration is valid.")
+
+
+async def image_reload_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        reload_image_rendering_config()
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Image rendering reload failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text("✅ Image rendering configuration reloaded.")
+
+
+async def image_upload_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+
+    if not message.document:
+        await message.reply_text(
+            "Attach a JSON file with this command:\n\n/image_upload"
+        )
+        return
+
+    document = message.document
+    filename = document.file_name or ""
+    if not filename.lower().endswith(".json"):
+        await message.reply_text(
+            "Upload rejected. The attached file must be JSON."
+        )
+        return
+    if (
+        document.file_size
+        and document.file_size > MAX_IMAGE_RENDERING_UPLOAD_BYTES
+    ):
+        await message.reply_text(
+            "Image rendering upload rejected: file too large."
+        )
+        return
+
+    temp_path = (
+        IMAGE_RENDERING_UPLOAD_DIR
+        / f"image_rendering_upload.{uuid.uuid4().hex}.json"
+    )
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        file = await context.bot.get_file(document.file_id)
+        await file.download_to_drive(str(temp_path))
+        status = await asyncio.to_thread(
+            replace_image_rendering_config_from_file,
+            temp_path,
+        )
+    except json.JSONDecodeError:
+        await message.reply_text(
+            "⚠️ Image rendering upload failed. JSON could not be parsed."
+        )
+        return
+    except ValueError as error:
+        await message.reply_text(
+            f"⚠️ Image rendering upload failed.\n\n{error}"
+        )
+        return
+    except Exception:
+        await message.reply_text(
+            "⚠️ Image rendering upload failed safely."
+        )
+        return
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    await message.reply_text(
+        "✅ Image rendering configuration uploaded and reloaded.\n\n"
+        f"{format_image_status(status)}"
     )
 
 
@@ -765,25 +908,33 @@ async def composer_upload_command(
     )
 
 
-async def composer_upload_document_handler(
+async def config_upload_document_handler(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
     message = update.effective_message
     caption = message.caption or ""
 
-    if not re.match(
+    if re.match(
         r"^\s*/composer_upload(?:@\w+)?(?:\s|$)",
         caption,
         re.IGNORECASE,
     ):
+        handler = composer_upload_command
+    elif re.match(
+        r"^\s*/image_upload(?:@\w+)?(?:\s|$)",
+        caption,
+        re.IGNORECASE,
+    ):
+        handler = image_upload_command
+    else:
         return
 
     if not is_authorized(update):
         await reply_unauthorized(update)
         return
 
-    await composer_upload_command(update, context)
+    await handler(update, context)
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1115,6 +1266,12 @@ def build_telegram_app():
     app.add_handler(CommandHandler("fb_set_token", admin_command(fb_set_token_command)))
     app.add_handler(CommandHandler("image_manual", admin_command(image_manual_command)))
     app.add_handler(CommandHandler("image_fit", admin_command(image_fit_command)))
+    app.add_handler(CommandHandler("image_status", admin_command(image_status_command)))
+    app.add_handler(CommandHandler("image_show", admin_command(image_show_command)))
+    app.add_handler(CommandHandler("image_builder", admin_command(image_builder_command)))
+    app.add_handler(CommandHandler("image_validate", admin_command(image_validate_command)))
+    app.add_handler(CommandHandler("image_reload", admin_command(image_reload_command)))
+    app.add_handler(CommandHandler("image_upload", admin_command(image_upload_command)))
     app.add_handler(CommandHandler("template_manual", admin_command(template_manual_command)))
     app.add_handler(CommandHandler("template_status", admin_command(template_status_command)))
     app.add_handler(CommandHandler("template_show", admin_command(template_show_command)))
@@ -1133,7 +1290,7 @@ def build_telegram_app():
     app.add_handler(
         MessageHandler(
             filters.Document.ALL,
-            composer_upload_document_handler,
+            config_upload_document_handler,
         )
     )
     app.add_handler(MessageHandler(filters.PHOTO | filters.TEXT, modify_message_handler))

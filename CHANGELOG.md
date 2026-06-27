@@ -4,6 +4,23 @@ All notable changes to WeatherWatch are documented here.
 
 ---
 
+# v0.8.0 — Config-Driven Intelligent Map Framing
+
+## Added
+
+* Config-driven map framing decisions for monsoon, LPA, cyclone, and default situations.
+* Separate `manual_image` and `auto_map` sections in `image_rendering.json`.
+* Allowlisted image configuration status, preview, builder, validation, reload, and upload commands.
+* Framing metadata in generated approval jobs and the local health endpoint.
+
+## Changed
+
+* Legacy flat image-rendering JSON is normalized without breaking manual image uploads.
+* `/image_fit` now changes only `manual_image.fit_mode` and preserves automatic-map policy.
+* Provider capture behavior remains unchanged pending a later browser-control phase.
+
+---
+
 # v0.7.9 — Editable Content Composer Configuration
 
 ## Added
