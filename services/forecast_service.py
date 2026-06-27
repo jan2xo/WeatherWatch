@@ -5,6 +5,7 @@ from services.forecast_parser import (
     build_structured_forecast_caption_detail,
     parse_pagasa_forecast_text,
 )
+from services.content_composer_service import compose_weather_content
 
 
 FORECAST_RULES = [
@@ -149,14 +150,20 @@ def extract_storms(text: str):
     return storms
 
 
-def parse_forecast_text(text: str):
+def parse_forecast_text(text: str, provider_metadata=None):
     lowered = text.lower()
     storms = extract_storms(text)
     structured = parse_pagasa_forecast_text(text)
+    composed_content = compose_weather_content(
+        parsed_forecast_text=text,
+        forecast_data=structured,
+        provider_metadata=provider_metadata,
+    )
 
     return {
         "raw_text": text,
         "structured": structured,
+        "composed_content": composed_content,
         "structured_caption_detail": build_structured_forecast_caption_detail(structured),
         "affected_weather_caption_detail": build_affected_weather_caption_detail(structured),
         "weather_type": detect_weather_type(text),

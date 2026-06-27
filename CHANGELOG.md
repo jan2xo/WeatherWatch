@@ -4,6 +4,39 @@ All notable changes to WeatherWatch are documented here.
 
 ---
 
+# v0.7.9 — Editable Content Composer Configuration
+
+## Added
+
+* Editable `config/content_composer.json` wording and detection aliases.
+* Last-known-good composer configuration with safe default fallback.
+* Separate allowlisted `/composer_*` validation, upload, and reload commands.
+* Composer configuration upload and backup storage.
+
+## Changed
+
+* Monsoon, cyclone framing, fallback wording, and source lines are now config-driven.
+* Composer aliases match configured weather-system names case-insensitively.
+* Caption-template and content-composer administration remain isolated.
+
+---
+
+# v0.7.8 — Content Composer
+
+## Added
+
+* Deterministic content composer between structured PAGASA parsing and caption rendering.
+* Natural monsoon-only, cyclone, and safe fallback weather stories.
+* Composer verification for monsoon headlines, cyclone measurements, and malformed input.
+
+## Changed
+
+* Monsoon-only updates now include every parsed affected area in the headline.
+* Captions prefer composed public-information wording while retaining existing templates as fallback.
+* PAGASA and map-provider source attribution remains unchanged.
+
+---
+
 # v0.7.7 — Configurable Image Rendering
 
 ## Added

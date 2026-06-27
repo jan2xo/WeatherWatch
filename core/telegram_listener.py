@@ -1,5 +1,6 @@
 import re
 import asyncio
+import io
 import json
 import html
 import uuid
@@ -40,6 +41,17 @@ from services.caption_template_service import (
     template_json_preview,
     validate_template_file,
     MAX_TEMPLATE_UPLOAD_BYTES,
+)
+from services.content_composer_config_service import (
+    CONFIG_PATH as COMPOSER_CONFIG_PATH,
+    MAX_COMPOSER_UPLOAD_BYTES,
+    UPLOAD_DIR as COMPOSER_UPLOAD_DIR,
+    composer_json_preview,
+    get_composer_status,
+    reload_composer_config,
+    replace_composer_config_from_file,
+    starter_composer_json,
+    load_composer_config_file,
 )
 from config.settings import (
     get_required_env,
@@ -371,6 +383,8 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Attach a photo with /modify to replace the raw image and regenerate the GPX graphic.\n\n"
         "Template tools:\n"
         "Use /template_manual for caption template editing, validation, upload, and reload commands.\n\n"
+        "Content composer tools:\n"
+        "Use /composer_manual for editable weather wording and composer configuration.\n\n"
         "Image Rendering:\n"
         "Use /image_manual for image rendering configuration and commands.\n\n"
         "VPS backup reminder:\n"
@@ -462,6 +476,7 @@ async def template_manual_command(update: Update, context: ContextTypes.DEFAULT_
         "cyclone_location, cyclone_intensity, cyclone_movement, affected_system, source_line\n\n"
         "Required translation groups:\n"
         "weather_systems, movement_directions\n\n"
+        "Composer configuration is separate. Use /composer_manual for editorial weather wording.\n\n"
         "VPS backup reminder:\n"
         "state/ is gitignored but must be backed up. Important files: state/approval_state.json and state/facebook_token_state.json."
     )
@@ -575,6 +590,200 @@ async def template_upload_command(update: Update, context: ContextTypes.DEFAULT_
         "✅ Caption template uploaded and reloaded.\n\n"
         f"{format_template_status(status)}"
     )
+
+
+async def composer_manual_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "Content Composer Manual\n\n"
+        "Composer configuration controls editorial weather wording and detection aliases. It is separate from PAGASA caption templates.\n\n"
+        "Commands:\n"
+        "/composer_status - Show configuration version, language, load time, and validation status.\n"
+        "/composer_show - Show the active composer JSON or a shortened preview.\n"
+        "/composer_builder - Show a starter composer JSON.\n"
+        "/composer_validate - Validate the saved configuration without applying changes.\n"
+        "/composer_reload - Reload valid composer configuration without restarting.\n"
+        "/composer_upload - Attach an edited JSON file to validate, back up, replace, and reload it.\n\n"
+        "Composer uploads must be JSON and no larger than 100 KB.\n"
+        "Composer commands do not modify config/caption_templates.pagasa.json."
+    )
+
+
+def format_composer_status(status):
+    lines = [
+        "Content Composer Status",
+        f"Config: {status.get('config_path')}",
+        f"Version: {status.get('version') or 'Unknown'}",
+        f"Language: {status.get('language') or 'Unknown'}",
+        f"Last loaded: {status.get('last_loaded') or 'Never'}",
+        f"Validation: {status.get('validation_status')}",
+    ]
+
+    if status.get("last_validation_error"):
+        lines.append(f"Last error: {status['last_validation_error']}")
+
+    return "\n".join(lines)
+
+
+async def composer_status_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        format_composer_status(get_composer_status())
+    )
+
+
+async def composer_show_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        text = composer_json_preview()
+    except Exception as error:
+        await update.message.reply_text(
+            f"Composer preview failed: {error}"
+        )
+        return
+
+    await update.message.reply_text(
+        f"<pre>{html.escape(text)}</pre>",
+        parse_mode="HTML",
+    )
+
+
+async def composer_builder_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    document = io.BytesIO(starter_composer_json().encode("utf-8"))
+    document.name = "content_composer.starter.json"
+    await update.message.reply_document(
+        document=document,
+        filename="content_composer.starter.json",
+        caption="Starter content composer configuration.",
+    )
+
+
+async def composer_validate_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        load_composer_config_file(COMPOSER_CONFIG_PATH)
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Composer validation failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text("✅ Content composer configuration is valid.")
+
+
+async def composer_reload_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        reload_composer_config()
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Composer reload failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text("✅ Content composer configuration reloaded.")
+
+
+async def composer_upload_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    message = update.message
+
+    if not message.document:
+        await message.reply_text(
+            "Attach a JSON file with this command:\n\n/composer_upload"
+        )
+        return
+
+    document = message.document
+    filename = document.file_name or ""
+
+    if not filename.lower().endswith(".json"):
+        await message.reply_text(
+            "Upload rejected. The attached file must be JSON."
+        )
+        return
+
+    if document.file_size and document.file_size > MAX_COMPOSER_UPLOAD_BYTES:
+        await message.reply_text("Composer upload rejected: file too large.")
+        return
+
+    temp_path = (
+        COMPOSER_UPLOAD_DIR
+        / f"content_composer_upload.{uuid.uuid4().hex}.json"
+    )
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        file = await context.bot.get_file(document.file_id)
+        await file.download_to_drive(str(temp_path))
+        status = await asyncio.to_thread(
+            replace_composer_config_from_file,
+            temp_path,
+        )
+    except json.JSONDecodeError:
+        await message.reply_text(
+            "⚠️ Composer upload failed. JSON could not be parsed."
+        )
+        return
+    except ValueError as error:
+        if str(error) == "Composer upload rejected: file too large.":
+            await message.reply_text(
+                "Composer upload rejected: file too large."
+            )
+            return
+
+        await message.reply_text(
+            f"⚠️ Composer upload failed.\n\n{error}"
+        )
+        return
+    except Exception as error:
+        await message.reply_text(
+            f"⚠️ Composer upload failed.\n\n{error}"
+        )
+        return
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    await message.reply_text(
+        "✅ Content composer configuration uploaded and reloaded.\n\n"
+        f"{format_composer_status(status)}"
+    )
+
+
+async def composer_upload_document_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    message = update.effective_message
+    caption = message.caption or ""
+
+    if not re.match(
+        r"^\s*/composer_upload(?:@\w+)?(?:\s|$)",
+        caption,
+        re.IGNORECASE,
+    ):
+        return
+
+    if not is_authorized(update):
+        await reply_unauthorized(update)
+        return
+
+    await composer_upload_command(update, context)
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -913,7 +1122,20 @@ def build_telegram_app():
     app.add_handler(CommandHandler("template_validate", admin_command(template_validate_command)))
     app.add_handler(CommandHandler("template_reload", admin_command(template_reload_command)))
     app.add_handler(CommandHandler("template_upload", admin_command(template_upload_command)))
+    app.add_handler(CommandHandler("composer_manual", admin_command(composer_manual_command)))
+    app.add_handler(CommandHandler("composer_status", admin_command(composer_status_command)))
+    app.add_handler(CommandHandler("composer_show", admin_command(composer_show_command)))
+    app.add_handler(CommandHandler("composer_builder", admin_command(composer_builder_command)))
+    app.add_handler(CommandHandler("composer_validate", admin_command(composer_validate_command)))
+    app.add_handler(CommandHandler("composer_reload", admin_command(composer_reload_command)))
+    app.add_handler(CommandHandler("composer_upload", admin_command(composer_upload_command)))
 
+    app.add_handler(
+        MessageHandler(
+            filters.Document.ALL,
+            composer_upload_document_handler,
+        )
+    )
     app.add_handler(MessageHandler(filters.PHOTO | filters.TEXT, modify_message_handler))
 
     return app

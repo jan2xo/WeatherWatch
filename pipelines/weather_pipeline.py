@@ -16,7 +16,12 @@ def run_weather_pipeline(job):
     run_capture_job(job)
 
     job["forecast"] = parse_forecast_text(
-        job.get("forecast_text", "")
+        job.get("forecast_text", ""),
+        provider_metadata={
+            "provider": job.get("provider"),
+            "provider_display": job.get("provider_display"),
+            "provider_url": job.get("provider_url"),
+        },
     )
 
     job["content_type"] = job["forecast"]["weather_type"]

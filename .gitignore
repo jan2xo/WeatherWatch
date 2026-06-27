@@ -7,6 +7,8 @@ output/
 state/
 data/template_backups/
 data/template_uploads/
+data/composer_backups/
+data/composer_uploads/
 logs/
 backups/
 dist/

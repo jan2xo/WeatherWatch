@@ -55,16 +55,23 @@ def build_source_block(job):
 
     provider_display = job.get("provider_display") or job.get("provider") or "Provider"
     provider_url = job.get("provider_url") or job.get("url") or ""
+    forecast_source = (
+        job.get("forecast", {})
+        .get("composed_content", {})
+        .get("source_line")
+        or "Forecast: PAGASA | pagasa.dost.gov.ph"
+    )
 
     if provider_url:
-        return f"Forecast: PAGASA | pagasa.dost.gov.ph\nMap: {provider_display.upper()} | {provider_url}"
+        return f"{forecast_source}\nMap: {provider_display.upper()} | {provider_url}"
 
-    return f"Forecast: PAGASA\nMap: {provider_display.upper()}"
+    return f"{forecast_source}\nMap: {provider_display.upper()}"
 
 
 def build_graphic_headline(job):
     forecast = job.get("forecast", {})
     storms = forecast.get("storms", [])
+    composed_content = forecast.get("composed_content") or {}
 
     if forecast.get("has_storms"):
         if len(storms) >= 2:
@@ -78,6 +85,15 @@ def build_graphic_headline(job):
         )
 
     if forecast.get("habagat"):
+        composed_headline = composed_content.get("headline")
+
+        if composed_headline:
+            return composed_headline.upper().replace(
+                " NAKAAAPEKTO ",
+                "\nNAKAAAPEKTO ",
+                1,
+            )
+
         return "HABAGAT\nNAKAAAPEKTO SA LUZON"
 
     return job.get(
@@ -92,6 +108,7 @@ def build_facebook_caption(job):
     storms = forecast.get("storms", [])
     bulletin_lines = forecast.get("bulletin_lines", [])
     source_block = build_source_block(job)
+    composed_content = forecast.get("composed_content") or {}
 
     if forecast.get("has_storms"):
         storm_details = join_filipino([
@@ -103,10 +120,16 @@ def build_facebook_caption(job):
 
         opener = build_caption_opener(headline, "🌀")
 
+        use_composed_story = (
+            len(storms) == 1
+            and composed_content.get("content_type") == "cyclone_update"
+            and composed_content.get("summary")
+        )
         details = (
-            structured_detail
-            if structured_detail
-            else f"Batay sa pinakahuling weather bulletin ng PAGASA, patuloy na mino-monitor ang {storm_details}."
+            composed_content["summary"]
+            if use_composed_story
+            else structured_detail
+            or f"Batay sa pinakahuling weather bulletin ng PAGASA, patuloy na mino-monitor ang {storm_details}."
         )
 
         bulletin_lines = [
@@ -115,9 +138,13 @@ def build_facebook_caption(job):
             if line != affected_weather_detail
         ]
 
-        bulletin_parts = []
+        bulletin_parts = (
+            list(composed_content.get("body_lines", []))
+            if use_composed_story
+            else []
+        )
 
-        if affected_weather_detail:
+        if affected_weather_detail and not use_composed_story:
             bulletin_parts.append(affected_weather_detail)
 
         if bulletin_lines:
@@ -131,6 +158,23 @@ def build_facebook_caption(job):
             f"{opener}\n\n"
             f"{details}"
             f"{bulletin}\n\n"
+            f"{source_block}\n\n"
+            "#WeatherWatch #NorthLuzonWeatherWatch"
+        )
+
+    if composed_content.get("summary"):
+        opener = build_caption_opener(headline, "📡")
+        story_parts = [
+            composed_content["summary"],
+            *composed_content.get("body_lines", []),
+        ]
+        story = "\n\n".join(
+            part for part in story_parts if part
+        )
+
+        return (
+            f"{opener}\n\n"
+            f"{story}\n\n"
             f"{source_block}\n\n"
             "#WeatherWatch #NorthLuzonWeatherWatch"
         )

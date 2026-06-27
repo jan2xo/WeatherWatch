@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "language": "fil",
+  "composer": {
+    "default_source_line": "Forecast: PAGASA | pagasa.dost.gov.ph",
+    "monsoon": {
+      "systems": {
+        "Southwest Monsoon": {
+          "display_name": "Habagat",
+          "aliases": [
+            "Southwest Monsoon",
+            "Southwest Monsoon (Habagat)",
+            "Habagat"
+          ],
+          "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
+          "summary_template": "Patuloy na nakaaapekto ang {display_name} o Southwest Monsoon sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
+        }
+      }
+    },
+    "cyclone": {
+      "headline_template": "{subject} Patuloy na Binabantayan",
+      "fallback_headline": "Bagyo Patuloy na Binabantayan",
+      "fallback_summary": "Patuloy na binabantayan ng PAGASA ang bagyo."
+    },
+    "fallback": {
+      "headline": "Weather Update",
+      "primary_subject": "Weather Update",
+      "summary": "Patuloy na mino-monitor ang lagay ng panahon batay sa mga bulletin ng PAGASA."
+    }
+  }
+}
