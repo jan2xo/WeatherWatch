@@ -14,8 +14,6 @@ from storage.approval_store import create_current_job
 
 
 def run_weather_pipeline(job):
-    run_capture_job(job)
-
     job["forecast"] = parse_forecast_text(
         job.get("forecast_text", ""),
         provider_metadata={
@@ -30,6 +28,8 @@ def run_weather_pipeline(job):
         forecast_data=job["forecast"]["structured"],
         parsed_forecast_text=job["forecast"]["raw_text"],
     )
+
+    run_capture_job(job)
 
     # Generate the GPX/graphic headline BEFORE rendering the image.
     job["headline"] = build_graphic_headline(job)

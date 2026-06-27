@@ -407,7 +407,7 @@ async def image_manual_command(update: Update, context: ContextTypes.DEFAULT_TYP
         "manual_image:\n"
         "Controls only user-submitted photos and screenshots. Available fit modes are stretch, smartfit, and crop.\n\n"
         "auto_map:\n"
-        "Uses parsed PAGASA conditions to choose configured regions, zoom, and pan values for automatic provider maps. Browser movement is not applied in this phase.\n\n"
+        "Uses parsed PAGASA conditions to choose configured regions, zoom, and geographic pan offsets for automatic provider maps. pan_x adjusts longitude and pan_y adjusts latitude in degrees.\n\n"
         "Commands:\n"
         "/image_fit [stretch|smartfit|crop] - View or change manual fit only.\n"
         "/image_status - Show manual and auto-map configuration status.\n"

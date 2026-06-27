@@ -17,7 +17,8 @@ All notable changes to WeatherWatch are documented here.
 
 * Legacy flat image-rendering JSON is normalized without breaking manual image uploads.
 * `/image_fit` now changes only `manual_image.fit_mode` and preserves automatic-map policy.
-* Provider capture behavior remains unchanged pending a later browser-control phase.
+* WINDY captures now receive config-driven center coordinates and zoom before screenshot generation.
+* WINDY framing applies `pan_x` as a longitude offset and `pan_y` as a latitude offset.
 
 ---
 

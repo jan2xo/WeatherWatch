@@ -14,6 +14,7 @@ from services.image_rendering_service import (
     set_fit_mode,
     validate_upload_size,
 )
+from services.capture_service import apply_windy_framing, resolve_capture_url
 from services.map_framing_service import determine_map_framing
 
 
@@ -75,6 +76,24 @@ def main():
     unknown = determine_map_framing({}, "Unknown weather condition.")
     assert unknown["situation_id"] == "default"
     assert unknown["region_id"] == "philippines"
+
+    framed_url = apply_windy_framing(
+        "https://www.windy.com/-Satellite-satellite?satellite,11.001,125.321,5",
+        {
+            "enabled": True,
+            "center_lat": 13.5,
+            "center_lon": 122.5,
+            "zoom": 7,
+            "pan_x": 1.25,
+            "pan_y": -3,
+        },
+    )
+    assert framed_url.endswith("?satellite,10.5000,123.7500,7")
+    assert resolve_capture_url({
+        "provider": "panahon",
+        "url": "https://www.panahon.gov.ph/",
+        "framing_decision": cyclone,
+    }) == "https://www.panahon.gov.ph/"
 
     changed = default_config()
     changed["auto_map"]["framing"]["situations"]["cyclone"]["zoom"] = 8

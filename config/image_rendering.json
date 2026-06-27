@@ -38,7 +38,7 @@
         "luzon_visayas": {
           "center_lat": 13.5,
           "center_lon": 122.5,
-          "zoom": 5
+          "zoom": 10
         },
         "mindanao": {
           "center_lat": 7.8,
@@ -60,9 +60,9 @@
           ],
           "strategy": "region",
           "region_id": "luzon_visayas",
-          "zoom": 5,
+          "zoom": 7,
           "pan_x": 0,
-          "pan_y": 0,
+          "pan_y": 2,
           "reason": "Habagat affecting Luzon and Visayas"
         },
         "monsoon_northeast": {
