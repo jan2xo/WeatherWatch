@@ -1017,13 +1017,30 @@ async def windy_manual_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+    status = get_windy_layer_status()
+    available_layers = "\n".join(
+        f"- {layer['id']} ({layer['label']})"
+        for layer in status.get("enabled_layers", [])
+    ) or "- None"
+
     await update.message.reply_text(
         "Windy Layer Manual\n\n"
         "Windy layers control the map visualization used before provider capture. Satellite is the recommended default.\n\n"
         "Suggestion rules may recommend a layer from forecast context, but rotation is disabled by default and WeatherWatch does not silently change the selected layer.\n\n"
+        "Available layers:\n"
+        f"{available_layers}\n\n"
         "Runtime:\n"
         "/windy_layer - Show the persistent default, current job, suggestion, and enabled layers.\n"
         "/windy_layer LAYER - Save the default for future updates and update eligible current-job metadata. Existing graphics are not recaptured.\n\n"
+        "Examples:\n"
+        "/windy_layer satellite\n"
+        "/windy_layer radar\n"
+        "/windy_layer wind\n"
+        "/windy_layer rain\n"
+        "/windy_layer temperature\n"
+        "/windy_layer clouds\n"
+        "/windy_layer rain_accumulation\n"
+        "/windy_layer thunderstorms\n\n"
         "Configuration:\n"
         "/windy_status - Show validation and enabled-layer status.\n"
         "/windy_show - Show current JSON or a shortened preview.\n"
