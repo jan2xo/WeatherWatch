@@ -164,6 +164,7 @@ run_optional_test "tests/verify_template_guardrails.py"
 run_optional_test "tests/verify_language_normalization.py"
 run_optional_test "tests/verify_text_post_publisher.py"
 run_optional_test "tests/verify_windy_layers.py"
+run_optional_test "tests/verify_approval_state_safety.py"
 check_systemd
 check_health_endpoint
 

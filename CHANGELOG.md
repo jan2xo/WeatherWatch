@@ -19,6 +19,12 @@ All notable changes to WeatherWatch are documented here.
 * Windy capture URLs are now built from configured layer patterns and map framing decisions.
 * Current-job layer changes update metadata without silently recapturing reviewed graphics.
 
+## Fixed
+
+* Approval-state writes are atomic and serialized across dashboard, Telegram, and scheduler threads.
+* Malformed or transient state reads no longer masquerade as `No current job`.
+* `/windy_layer LAYER` now persists the default even when no current job exists.
+
 ---
 
 # v0.8.6 — Intent-Based Text Approval

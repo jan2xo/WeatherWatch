@@ -212,6 +212,15 @@ def get_default_layer():
     return get_windy_layer_config()["default_layer"]
 
 
+def set_default_layer(layer_id):
+    config = get_windy_layer_config()
+    selected, _ = get_layer(layer_id, config)
+    config["default_layer"] = selected
+    save_windy_layer_config(config)
+    reload_windy_layer_config()
+    return selected
+
+
 def get_layer(layer_id, config=None):
     active = config or get_windy_layer_config()
     normalized = str(layer_id or "").strip().lower()

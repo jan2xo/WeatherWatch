@@ -8,7 +8,10 @@ from services.post_type_config_service import (
     get_enabled_post_types,
     validate_selected_post_type,
 )
-from services.windy_layer_service import build_windy_job_metadata
+from services.windy_layer_service import (
+    build_windy_job_metadata,
+    set_default_layer,
+)
 from storage.approval_store import (
     approve_current_job as store_approve_current_job,
     get_current_job,
@@ -167,15 +170,27 @@ def set_post_type(post_type):
 
 def set_windy_layer(layer_id):
     with _CONTROL_LOCK:
-        job = require_current_job(WINDY_LAYER_EDITABLE_STATUSES)
+        selected = set_default_layer(layer_id)
+        job = get_current_job()
+        result = {
+            "success": True,
+            "job": job,
+            "windy_layer": selected,
+            "default_updated": True,
+            "current_job_updated": False,
+            "recaptured": False,
+        }
+
+        if not job:
+            return result
         if (job.get("provider") or "").lower() != "windy":
-            raise ValueError(
-                "Windy layer selection is available only for Windy jobs."
-            )
+            return result
+        if job.get("status") not in WINDY_LAYER_EDITABLE_STATUSES:
+            return result
 
         metadata = build_windy_job_metadata(
             framing_decision=job.get("framing_decision"),
-            layer_id=layer_id,
+            layer_id=selected,
         )
         metadata["suggested_windy_layer"] = (
             job.get("suggested_windy_layer")
@@ -186,11 +201,11 @@ def set_windy_layer(layer_id):
             preserve_status=job.get("status") == "publish_failed",
         )
         return {
-            "success": True,
+            **result,
             "job": updated,
             "windy_layer": metadata["windy_layer"],
             "windy_url": metadata["windy_url"],
-            "recaptured": False,
+            "current_job_updated": True,
         }
 
 

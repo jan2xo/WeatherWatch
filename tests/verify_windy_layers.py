@@ -121,6 +121,7 @@ def verify_control_plane_and_storage():
     original_get_job = control.get_current_job
     original_update = control.update_current_job
     original_state_file = approval_store.STATE_FILE
+    original_config_text = windy.CONFIG_PATH.read_text(encoding="utf-8")
     current = {
         "job_id": "windy-job",
         "status": "pending",
@@ -148,12 +149,22 @@ def verify_control_plane_and_storage():
         }
         result = control.set_windy_layer("radar")
         assert result["windy_layer"] == "radar"
+        assert result["default_updated"] is True
+        assert windy.get_default_layer() == "radar"
         assert result["recaptured"] is False
+        assert result["current_job_updated"] is True
         assert result["job"]["windy_layer_label"] == "Weather Radar"
 
         current["status"] = "publish_failed"
         failed_result = control.set_windy_layer("wind")
         assert failed_result["job"]["status"] == "publish_failed"
+
+        control.get_current_job = lambda: None
+        no_job_result = control.set_windy_layer("clouds")
+        assert no_job_result["job"] is None
+        assert no_job_result["default_updated"] is True
+        assert no_job_result["current_job_updated"] is False
+        assert windy.get_default_layer() == "clouds"
 
         with tempfile.TemporaryDirectory() as temporary_dir:
             approval_store.STATE_FILE = (
@@ -174,6 +185,11 @@ def verify_control_plane_and_storage():
         control.get_current_job = original_get_job
         control.update_current_job = original_update
         approval_store.STATE_FILE = original_state_file
+        windy.CONFIG_PATH.write_text(
+            original_config_text,
+            encoding="utf-8",
+        )
+        windy.reload_windy_layer_config()
 
 
 def verify_dashboard_security():

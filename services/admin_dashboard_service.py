@@ -1185,8 +1185,9 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
             )
         elif parsed.path == "/admin/action/windy_layer":
             message = (
-                "Windy layer metadata changed to "
+                "Windy default layer changed to "
                 f"{result.get('windy_layer', 'unknown')}. "
+                "Future updates will use it. "
                 "The current graphic was not recaptured."
             )
         else:

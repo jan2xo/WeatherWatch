@@ -474,15 +474,18 @@ Generated approval jobs retain:
 
 Allowlisted Telegram configuration commands are `/windy_manual`,
 `/windy_status`, `/windy_show`, `/windy_builder`, `/windy_validate`,
-`/windy_reload`, and `/windy_upload`. `/windy_layer` displays the current,
-suggested, and enabled layers; `/windy_layer LAYER` calls shared
-`control_plane_service.set_windy_layer()`.
+`/windy_reload`, and `/windy_upload`. `/windy_layer` displays the persistent
+default, current-job selection, suggestion, and enabled layers.
+`/windy_layer LAYER` calls shared `control_plane_service.set_windy_layer()`,
+saves that layer as the default in `config/windy_layers.json`, and therefore
+applies it to succeeding manual and scheduled updates across restarts.
 
 The dashboard displays current/suggested layer metadata and provides
 `POST /admin/action/windy_layer` using the existing dashboard authentication.
-Current-job changes are metadata-only in v0.8.7. They do not recapture or
-replace an already-reviewed screenshot or graphic. Layer selection is applied
-during normal generation before provider capture.
+When an editable Windy job exists, the command also updates its layer metadata.
+Current-job changes are metadata-only in v0.8.7: they do not recapture or
+replace an already-reviewed screenshot or graphic. The persisted selection is
+applied during the next normal generation before provider capture.
 
 `tests/verify_windy_layers.py` covers configuration validation, URL creation,
 framing coordinates, suggestions, disabled layers, upload safety, job
@@ -709,6 +712,16 @@ Statuses:
 
 Publishing failures retain the current job and `last_error` for retry.
 Posted/rejected jobs move to history. History older than seven days is pruned.
+
+Approval-state access is protected by a process-level reentrant lock so each
+read-modify-write transition is serialized across Telegram, dashboard, and
+scheduler threads. Saves write and flush a unique temporary file in `state/`
+before atomically replacing `approval_state.json`.
+
+Reads retry transient JSON failures. A persistently malformed state file raises
+a safe state-unavailable error; it is never interpreted as an empty state or
+`No current job`. The existing state file remains untouched when atomic
+replacement fails.
 
 Persisted metadata includes:
 
@@ -994,6 +1007,7 @@ backups, rollback, and security guidance.
 | `tests/verify_language_normalization.py` | Direction/region coverage, forms, composer integration, fallback, invalid upload |
 | `tests/verify_text_post_publisher.py` | Post-type config, guards, Facebook dispatch, retry, dashboard, and secret safety |
 | `tests/verify_windy_layers.py` | Windy layer validation, URLs, framing, suggestions, metadata, and dashboard security |
+| `tests/verify_approval_state_safety.py` | Atomic state writes, malformed reads, failed replacement, and concurrent updates |
 | `test_forecast.py` | Manual live PAGASA fetch smoke script |
 
 Run the local verification set:
@@ -1010,6 +1024,7 @@ Run the local verification set:
 .venv/bin/python tests/verify_language_normalization.py
 .venv/bin/python tests/verify_text_post_publisher.py
 .venv/bin/python tests/verify_windy_layers.py
+.venv/bin/python tests/verify_approval_state_safety.py
 .venv/bin/python -m compileall core services pipelines storage config tests
 ```
 

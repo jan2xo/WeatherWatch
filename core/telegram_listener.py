@@ -1022,8 +1022,8 @@ async def windy_manual_command(
         "Windy layers control the map visualization used before provider capture. Satellite is the recommended default.\n\n"
         "Suggestion rules may recommend a layer from forecast context, but rotation is disabled by default and WeatherWatch does not silently change the selected layer.\n\n"
         "Runtime:\n"
-        "/windy_layer - Show the current, suggested, and enabled layers.\n"
-        "/windy_layer LAYER - Change current-job layer metadata. Existing graphics are not recaptured in v0.8.7.\n\n"
+        "/windy_layer - Show the persistent default, current job, suggestion, and enabled layers.\n"
+        "/windy_layer LAYER - Save the default for future updates and update eligible current-job metadata. Existing graphics are not recaptured.\n\n"
         "Configuration:\n"
         "/windy_status - Show validation and enabled-layer status.\n"
         "/windy_show - Show current JSON or a shortened preview.\n"
@@ -1181,29 +1181,23 @@ async def windy_layer_command(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     job = get_current_job()
-    if not job:
-        await update.message.reply_text("No current job.")
-        return
-    if (job.get("provider") or "").lower() != "windy":
-        await update.message.reply_text(
-            "The current job does not use the Windy provider."
-        )
-        return
 
     if not context.args:
         status = get_windy_layer_status()
         enabled = ", ".join(
             layer["id"] for layer in status.get("enabled_layers", [])
         )
-        await send_job_preview(
-            update,
-            job,
+        text = (
             "Current Windy Layer\n\n"
-            f"Selected: {job.get('windy_layer') or status.get('default_layer')}\n"
-            f"Label: {job.get('windy_layer_label') or 'Unknown'}\n"
-            f"Suggested: {job.get('suggested_windy_layer') or 'Unknown'}\n"
-            f"Enabled: {enabled or 'None'}",
+            f"Default for future updates: {status.get('default_layer')}\n"
+            f"Current job: {(job or {}).get('windy_layer') or 'None'}\n"
+            f"Suggested: {(job or {}).get('suggested_windy_layer') or 'Unknown'}\n"
+            f"Enabled: {enabled or 'None'}"
         )
+        if job:
+            await send_job_preview(update, job, text)
+        else:
+            await update.message.reply_text(text)
         return
 
     if len(context.args) != 1:
@@ -1221,14 +1215,27 @@ async def windy_layer_command(
         )
         return
 
-    await send_job_preview(
-        update,
-        result["job"],
-        "✅ Windy layer metadata updated.\n\n"
-        f"Selected: {result['windy_layer']}\n"
-        f"URL: {result['windy_url']}\n\n"
-        "The existing screenshot and final graphic were not recaptured. "
-        "The selected layer applies when the job is generated or captured again.",
+    lines = [
+        "✅ Windy default layer updated.",
+        "",
+        f"Default for future updates: {result['windy_layer']}",
+        "This setting is saved and survives application restart.",
+    ]
+    if result.get("current_job_updated"):
+        lines.extend([
+            "",
+            "Current job metadata was also updated.",
+            f"URL: {result['windy_url']}",
+            "The existing screenshot and final graphic were not recaptured.",
+        ])
+    elif result.get("job"):
+        lines.extend([
+            "",
+            "The current job was not changed because it is not an editable Windy job.",
+        ])
+
+    await update.message.reply_text(
+        "\n".join(lines),
     )
 
 

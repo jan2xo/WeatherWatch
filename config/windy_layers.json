@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "default_layer": "satellite",
+  "default_layer": "wind",
   "rotation_enabled": false,
   "layers": {
     "satellite": {
