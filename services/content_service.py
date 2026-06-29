@@ -215,13 +215,29 @@ def build_captions(job):
 
 
 def build_telegram_review_caption(job, current_job):
+    post_type = current_job.get("post_type", "image").upper()
+    text_notice = (
+        "\n<b>Facebook will publish this as a text-only post.</b>\n"
+        if post_type == "TEXT"
+        else ""
+    )
+    windy_line = (
+        f"Windy Layer: <b>{current_job.get('windy_layer_label')}</b>\n"
+        if current_job.get("windy_layer_label")
+        else ""
+    )
     return (
         f"{job['captions']['telegram']}\n\n"
         f"🆔 Job ID: <code>{current_job['job_id']}</code>\n"
-        f"Status: <b>{current_job['status']}</b>\n\n"
+        f"Status: <b>{current_job['status']}</b>\n"
+        f"Post Type: <b>{post_type}</b>\n"
+        f"{windy_line}"
+        f"{text_notice}\n"
         "<b>Commands:</b>\n"
         "/manual\n"
+        "/post_type\n"
         "/approve\n"
+        "/text_approve\n"
         "/reject\n"
         "/retry_publish\n"
         "/fbstatus\n"

@@ -1,6 +1,6 @@
 # WeatherWatch Features and Extension Guide
 
-Version: 0.8.3
+Version: 0.8.7
 Repository audit date: 2026-06-28
 
 This document is the code-facing reference for WeatherWatch. It explains the
@@ -78,6 +78,7 @@ Telegram /update or scheduler
   -> provider selection
   -> pipelines.weather_pipeline.run_weather_pipeline()
   -> structured forecast parsing
+  -> config-driven language normalization
   -> content composition
   -> map-framing decision
   -> provider capture
@@ -203,6 +204,7 @@ Current command families:
 | `/template_*` | PAGASA deterministic caption templates |
 | `/composer_*` | Editable editorial composer wording |
 | `/image_*` | Manual fit and automatic map framing config |
+| `/language_*` | PAGASA area-phrase normalization config |
 
 `/modify` supports:
 
@@ -440,6 +442,52 @@ Region entries provide geographic centers and reusable region defaults.
 
 Use `/image_reload` after editing the file directly.
 
+### Config-Driven Windy Layer Selector
+
+`config/windy_layers.json` controls Windy layer IDs, labels, enabled state,
+URL patterns, the default layer, and forecast-context suggestion rules.
+Satellite remains the enabled safe default. `rotation_enabled` is reserved;
+v0.8.7 does not rotate layers automatically.
+
+`services/windy_layer_service.py` validates that each URL pattern contains
+exactly `{lat}`, `{lon}`, and `{zoom}`. It preserves the last-known-good
+configuration in memory, falls back safely to satellite, builds final URLs,
+and rejects unknown or disabled layers.
+
+The weather pipeline keeps map framing and layer selection separate:
+
+1. `map_framing_service` selects center, pan, and zoom.
+2. `windy_layer_service` applies pan to the center coordinates.
+3. The selected layer URL pattern creates the final Windy URL.
+4. `capture_service` captures the resolved URL.
+
+Generated approval jobs retain:
+
+```json
+{
+  "windy_layer": "satellite",
+  "windy_layer_label": "Satellite",
+  "suggested_windy_layer": "satellite",
+  "windy_url": "https://www.windy.com/-Satellite-satellite?satellite,15.480,120.600,5"
+}
+```
+
+Allowlisted Telegram configuration commands are `/windy_manual`,
+`/windy_status`, `/windy_show`, `/windy_builder`, `/windy_validate`,
+`/windy_reload`, and `/windy_upload`. `/windy_layer` displays the current,
+suggested, and enabled layers; `/windy_layer LAYER` calls shared
+`control_plane_service.set_windy_layer()`.
+
+The dashboard displays current/suggested layer metadata and provides
+`POST /admin/action/windy_layer` using the existing dashboard authentication.
+Current-job changes are metadata-only in v0.8.7. They do not recapture or
+replace an already-reviewed screenshot or graphic. Layer selection is applied
+during normal generation before provider capture.
+
+`tests/verify_windy_layers.py` covers configuration validation, URL creation,
+framing coordinates, suggestions, disabled layers, upload safety, job
+metadata, and dashboard security.
+
 ## 9. Image Rendering
 
 ### `services/image_rendering_service.py`
@@ -527,6 +575,30 @@ Builds the higher-level forecast object used by the pipeline:
 - Habagat, Amihan, LPA, and thunderstorm flags.
 
 ## 11. Content Composition and Captions
+
+### `services/language_normalization_service.py`
+
+Normalizes parsed PAGASA `affected_areas` before content composition.
+
+Configuration: `config/language_normalization.json`
+
+Output forms:
+
+- `body`: preserves direction, such as `kanlurang bahagi ng Timog Luzon`;
+- `headline`: concise region name, such as `Timog Luzon`;
+- `short`: compact label, normally matching headline form.
+
+Matching is case-insensitive and collapses extra whitespace. Unknown phrases
+remain unchanged. The active configuration must contain western, eastern,
+northern, southern, and central variants for every required base region and
+subregion.
+
+`normalize_forecast_data()` stores body forms in `affected_areas`, plus
+`affected_areas_headline`, `affected_areas_short`, and the original list. The
+composer uses headline forms for headlines and body forms for summaries.
+
+The service also provides last-known-good reload, 100 KB upload limits, safe
+uploads/backups, status, preview, validation, and starter JSON.
 
 ### `services/content_composer_service.py`
 
@@ -646,6 +718,7 @@ Persisted metadata includes:
 - framing decision;
 - timestamps;
 - Facebook result/error fields.
+- `post_type`, enabled `available_post_types`, and optional suggested type.
 
 ### `storage/file_retention.py`
 
@@ -684,6 +757,8 @@ Provides:
 - manual Page-token save;
 - token-store-first lookup with environment fallback;
 - photo publishing;
+- native text publishing through the Page feed endpoint;
+- post-type dispatch without changing the photo upload implementation;
 - approval-state transitions.
 
 Caption source priority:
@@ -692,6 +767,70 @@ Caption source priority:
 2. legacy `job["caption"]`
 
 The full token is never returned by status helpers.
+
+### Native Text Post Publisher
+
+`config/post_types.json` controls the default, supported, and enabled post
+types. `services/post_type_config_service.py` validates this file, preserves
+the last-known-good in-memory configuration, and falls back safely to image
+publishing when the file is missing or invalid.
+
+Approval jobs default to:
+
+```json
+{
+  "post_type": "image",
+  "available_post_types": ["image", "text"],
+  "suggested_post_type": "image"
+}
+```
+
+The `publish_job(job)` dispatcher uses the unchanged photo path for `image`
+and the Facebook Page feed endpoint for `text`. Text posts use only the final
+Facebook caption and ignore the retained image path. Retry uses the stored
+`post_type`.
+
+Authorized Telegram admins use `/post_type` to inspect the current selection
+and `/post_type image` or `/post_type text` to change it. Changes are limited
+to pending, modified, or publish-failed jobs. The dashboard uses the same
+`services.control_plane_service.set_post_type()` function through
+`POST /admin/action/post_type`.
+
+### Intent-Based Text Approval
+
+The normal operator workflows are:
+
+```text
+/update
+/approve
+```
+
+This publishes the default image job.
+
+```text
+/update
+/text_approve
+```
+
+This expresses text intent directly. The shared control-plane operation stores
+`job["post_type"] = "text"` before applying the normal approval transition and
+calling the existing publish dispatcher. Telegram does not duplicate Facebook
+publishing logic.
+
+The dashboard exposes matching **Approve as Image** and **Approve as Text**
+controls. `POST /admin/action/text_approve` calls the same shared
+`text_approve_current_job()` operation and uses the existing dashboard
+authentication rules.
+
+`/post_type` remains available for inspection, debugging, and manual override.
+Ordinary `/approve` preserves the stored post type; newly generated jobs
+default to image. `/text_approve` is the recommended fast workflow for native
+text-only posts. A failed publish retains the stored post type, so
+`/retry_publish` retries the same image or text path.
+
+Video is reserved in configuration but remains disabled and unsupported by
+the publisher. This release does not auto-select text versus image and does
+not add multi-platform text publishing.
 
 ### `storage/facebook_token_store.py`
 
@@ -729,6 +868,9 @@ Routes:
 - POST `/admin/action/reject`
 - POST `/admin/action/retry_publish`
 - POST `/admin/action/modify`
+- POST `/admin/action/post_type`
+- POST `/admin/action/text_approve`
+- POST `/admin/action/windy_layer`
 - `/admin/current-image`: current graphic preview restricted to image files under `output/`
 
 Displayed health includes:
@@ -785,6 +927,9 @@ dashboard environment keys. Never put production secrets in this example.
 | `config/content_composer.json` | Editorial wording and aliases |
 | `config/image_rendering.json` | Manual image fit and automatic map framing |
 | `config/scheduler.json` | Scheduler timezone, enabled state, and update jobs |
+| `config/language_normalization.json` | PAGASA area phrase body/headline/short forms |
+| `config/post_types.json` | Enabled Facebook publishing types and default selection |
+| `config/windy_layers.json` | Windy layer URL patterns, defaults, and suggestions |
 
 Telegram upload families write only to their fixed active config file and use
 generated names in fixed runtime upload folders.
@@ -846,6 +991,9 @@ backups, rollback, and security guidance.
 | `tests/verify_map_framing.py` | Situations, coordinates, zoom, pan, fallback, legacy config, provider URL framing |
 | `tests/verify_scheduler_config.py` | Scheduler schema, disabled jobs, defaults, reload, invalid uploads |
 | `tests/verify_dashboard_control_plane.py` | Dashboard authorization, shared actions, modify/retry state rules, secret exposure |
+| `tests/verify_language_normalization.py` | Direction/region coverage, forms, composer integration, fallback, invalid upload |
+| `tests/verify_text_post_publisher.py` | Post-type config, guards, Facebook dispatch, retry, dashboard, and secret safety |
+| `tests/verify_windy_layers.py` | Windy layer validation, URLs, framing, suggestions, metadata, and dashboard security |
 | `test_forecast.py` | Manual live PAGASA fetch smoke script |
 
 Run the local verification set:
@@ -859,6 +1007,9 @@ Run the local verification set:
 .venv/bin/python tests/verify_map_framing.py
 .venv/bin/python tests/verify_scheduler_config.py
 .venv/bin/python tests/verify_dashboard_control_plane.py
+.venv/bin/python tests/verify_language_normalization.py
+.venv/bin/python tests/verify_text_post_publisher.py
+.venv/bin/python tests/verify_windy_layers.py
 .venv/bin/python -m compileall core services pipelines storage config tests
 ```
 
@@ -889,12 +1040,18 @@ Runtime-only locations:
 | `data/composer_*` | Composer uploads/backups |
 | `data/image_rendering_*` | Image-config uploads/backups |
 | `data/scheduler_*` | Scheduler-config uploads/backups |
+| `data/language_*` | Language-normalization uploads/backups |
+| `data/windy_*` | Windy-layer uploads/backups |
 | `logs/` | Runtime logs when configured |
 | `dist/` | Release ZIP files |
 
 ## 20. Known Constraints
 
 - The approval model is a singleton current job, not a multi-job queue.
+- Post type selection is manual; WeatherWatch does not infer image versus text.
+- Native text publishing currently targets Facebook only; video is reserved.
+- Windy layer changes on an existing job update metadata only; v0.8.7 does not recapture the graphic.
+- Windy layer rotation is reserved but not active.
 - PANaHON framing is not implemented.
 - Meteoblue metadata is incomplete.
 - Region plugin modules are placeholders.

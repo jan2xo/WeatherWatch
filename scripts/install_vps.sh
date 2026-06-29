@@ -74,6 +74,10 @@ create_runtime_folders() {
     data/image_rendering_uploads \
     data/scheduler_backups \
     data/scheduler_uploads \
+    data/language_backups \
+    data/language_uploads \
+    data/windy_backups \
+    data/windy_uploads \
     output \
     logs \
     backups

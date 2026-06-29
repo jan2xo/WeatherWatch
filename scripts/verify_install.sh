@@ -154,10 +154,16 @@ check_dir "state"
 check_dir "output"
 check_dir "logs"
 check_file "config/caption_templates.pagasa.json"
+check_file "config/language_normalization.json"
+check_file "config/post_types.json"
+check_file "config/windy_layers.json"
 
 check_python_compile
 run_optional_test "tests/verify_forecast_parser.py"
 run_optional_test "tests/verify_template_guardrails.py"
+run_optional_test "tests/verify_language_normalization.py"
+run_optional_test "tests/verify_text_post_publisher.py"
+run_optional_test "tests/verify_windy_layers.py"
 check_systemd
 check_health_endpoint
 

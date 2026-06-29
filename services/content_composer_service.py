@@ -98,11 +98,14 @@ def compose_monsoon_update(
 ):
     composer = config["composer"]
     fallback = composer["fallback"]
-    areas_text = join_areas(forecast_data.get("affected_areas"))
+    body_areas_text = join_areas(forecast_data.get("affected_areas"))
+    headline_areas_text = join_areas(
+        forecast_data.get("affected_areas_headline")
+        or forecast_data.get("affected_areas")
+    )
     display_name = system_config["display_name"]
-    values = {
+    common_values = {
         "display_name": display_name,
-        "areas_text": areas_text,
         "subject": display_name,
         "parsed_forecast_text": " ".join(
             (parsed_forecast_text or "").split()
@@ -110,13 +113,19 @@ def compose_monsoon_update(
     }
     headline = safe_render(
         system_config["headline_template"],
-        values,
+        {
+            **common_values,
+            "areas_text": headline_areas_text,
+        },
         fallback["headline"],
         "monsoon.headline_template",
     )
     summary = safe_render(
         system_config["summary_template"],
-        values,
+        {
+            **common_values,
+            "areas_text": body_areas_text,
+        },
         fallback["summary"],
         "monsoon.summary_template",
     )

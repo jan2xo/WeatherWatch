@@ -3,6 +3,7 @@ from services.image_service import run_image_job
 from services.telegram_service import run_telegram_job
 from services.forecast_service import parse_forecast_text
 from services.map_framing_service import determine_map_framing
+from services.windy_layer_service import build_windy_job_metadata
 
 from services.content_service import (
     build_graphic_headline,
@@ -28,6 +29,15 @@ def run_weather_pipeline(job):
         forecast_data=job["forecast"]["structured"],
         parsed_forecast_text=job["forecast"]["raw_text"],
     )
+
+    if (job.get("provider") or "").lower() == "windy":
+        job.update(build_windy_job_metadata(
+            framing_decision=job["framing_decision"],
+            forecast_data=job["forecast"]["structured"],
+            parsed_forecast_text=job["forecast"]["raw_text"],
+            layer_id=job.get("windy_layer"),
+        ))
+        job["url"] = job["windy_url"]
 
     run_capture_job(job)
 

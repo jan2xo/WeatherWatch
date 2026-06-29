@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from datetime import datetime, timedelta
 
+from services.post_type_config_service import get_job_post_type_defaults
+
 
 STATE_FILE = Path("state/approval_state.json")
 HISTORY_RETENTION_DAYS = 7
@@ -74,6 +76,7 @@ def save_state(state):
 
 def create_current_job(job):
     state = load_state()
+    post_type_defaults = get_job_post_type_defaults()
 
     job_id = job.get("job_id") or datetime.now().strftime("%y%m%d-%H%M%S")
 
@@ -95,6 +98,26 @@ def create_current_job(job):
         "image": job.get("final_output_path"),
         "raw_image": job.get("raw_output_path"),
         "framing_decision": job.get("framing_decision"),
+        "post_type": job.get(
+            "post_type",
+            post_type_defaults["post_type"],
+        ),
+        "available_post_types": job.get(
+            "available_post_types",
+            post_type_defaults["available_post_types"],
+        ),
+        "suggested_post_type": job.get(
+            "suggested_post_type",
+            post_type_defaults["suggested_post_type"],
+        ),
+        "post_type_reason": job.get(
+            "post_type_reason",
+            post_type_defaults["post_type_reason"],
+        ),
+        "windy_layer": job.get("windy_layer"),
+        "windy_layer_label": job.get("windy_layer_label"),
+        "suggested_windy_layer": job.get("suggested_windy_layer"),
+        "windy_url": job.get("windy_url"),
     }
 
     state["current"] = current
@@ -136,7 +159,7 @@ def reject_current_job():
     return True
 
 
-def update_current_job(fields):
+def update_current_job(fields, preserve_status=False):
     state = load_state()
 
     if not state.get("current"):
@@ -145,8 +168,11 @@ def update_current_job(fields):
     for key, value in fields.items():
         state["current"][key] = value
 
-    state["current"]["status"] = "modified"
-    state["current"]["modified_at"] = datetime.now().isoformat(timespec="seconds")
+    if not preserve_status:
+        state["current"]["status"] = "modified"
+        state["current"]["modified_at"] = datetime.now().isoformat(
+            timespec="seconds"
+        )
 
     save_state(state)
     return state["current"]

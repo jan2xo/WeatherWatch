@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "default_post_type": "image",
+  "supported_post_types": [
+    "image",
+    "text"
+  ],
+  "facebook": {
+    "image": {
+      "enabled": true,
+      "description": "Publish final rendered image with caption."
+    },
+    "text": {
+      "enabled": true,
+      "description": "Publish caption as a native Facebook text post."
+    },
+    "video": {
+      "enabled": false,
+      "description": "Reserved for future video publishing."
+    }
+  }
+}

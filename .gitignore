@@ -13,6 +13,10 @@ data/image_rendering_backups/
 data/image_rendering_uploads/
 data/scheduler_backups/
 data/scheduler_uploads/
+data/language_backups/
+data/language_uploads/
+data/windy_backups/
+data/windy_uploads/
 logs/
 backups/
 dist/

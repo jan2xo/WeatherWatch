@@ -4,6 +4,75 @@ All notable changes to WeatherWatch are documented here.
 
 ---
 
+# v0.8.7 — Config-Driven Windy Layer Selector
+
+## Added
+
+* Editable Windy layer URL patterns with satellite as the safe default.
+* Forecast-context layer suggestions without automatic rotation.
+* Allowlisted `/windy_*` configuration tools and `/windy_layer` runtime selection.
+* Shared dashboard Windy layer selector and authenticated control-plane action.
+* Windy layer URL, label, selection, and suggestion metadata on approval jobs.
+
+## Changed
+
+* Windy capture URLs are now built from configured layer patterns and map framing decisions.
+* Current-job layer changes update metadata without silently recapturing reviewed graphics.
+
+---
+
+# v0.8.6 — Intent-Based Text Approval
+
+## Added
+
+* Allowlisted `/text_approve` command for one-step native Facebook text approval.
+* Shared control-plane text approval that stores text intent before approval and publishing.
+* Authenticated dashboard `POST /admin/action/text_approve` action.
+* Separate dashboard buttons for image and text approval intent.
+
+## Changed
+
+* Everyday text publishing is now `/update` followed by `/text_approve`.
+* `/post_type` remains available as an advanced manual override.
+* Retry publishing continues to use the post type stored on the failed job.
+
+---
+
+# v0.8.5 — Native Text Post Publisher
+
+## Added
+
+* Config-driven image and native Facebook text post types.
+* Human-controlled `/post_type image|text` Telegram selection.
+* Shared dashboard post-type selector and control-plane action.
+* Facebook feed publishing dispatcher for text-only posts.
+* Native text publisher verification covering dispatch, retry, guards, and secret safety.
+
+## Changed
+
+* Approval jobs now retain post type, available types, and suggested type metadata.
+* Previews clearly identify image versus text-only Facebook publishing.
+* Existing jobs without post-type metadata remain backward compatible as image posts.
+
+---
+
+# v0.8.4 — Config-Driven Language Normalization
+
+## Added
+
+* Editable `config/language_normalization.json` with body, headline, and short area forms.
+* Exhaustive directional coverage for all configured Philippine regions and subregions.
+* Last-known-good normalization configuration, validation, upload, reload, and backup handling.
+* Allowlisted `/language_*` Telegram administration commands.
+* Language normalization verification across all required direction/region combinations.
+
+## Changed
+
+* PAGASA affected-area phrases are normalized between parsing and content composition.
+* Monsoon headlines use concise region labels while caption bodies preserve directional detail.
+
+---
+
 # v0.8.3 — Dashboard Control Plane
 
 ## Added

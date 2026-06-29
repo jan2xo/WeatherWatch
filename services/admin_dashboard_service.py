@@ -15,6 +15,7 @@ from services.facebook_service import (
     reconnect_facebook_with_code,
 )
 from services.scheduler_config_service import get_scheduler_status
+from services.windy_layer_service import get_windy_layer_status
 import services.control_plane_service as control_plane
 from core.scheduler import get_scheduler_runtime_status
 from storage.approval_store import STATE_FILE as APPROVAL_STATE_FILE
@@ -22,7 +23,7 @@ from storage.approval_store import get_current_job
 from storage.facebook_token_store import STATE_FILE as FACEBOOK_TOKEN_STATE_FILE
 
 
-APP_VERSION = "0.8.3"
+APP_VERSION = "0.8.7"
 STARTED_AT = datetime.now()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_ROOT = (PROJECT_ROOT / "output").resolve()
@@ -32,9 +33,12 @@ MAX_POST_BYTES = 1024 * 1024
 ACTION_PATHS = {
     "/admin/action/update",
     "/admin/action/approve",
+    "/admin/action/text_approve",
     "/admin/action/reject",
     "/admin/action/retry_publish",
     "/admin/action/modify",
+    "/admin/action/post_type",
+    "/admin/action/windy_layer",
 }
 
 
@@ -89,6 +93,8 @@ def dispatch_dashboard_action(path, fields=None):
         return control_plane.generate_update()
     if path == "/admin/action/approve":
         return control_plane.approve_current_job()
+    if path == "/admin/action/text_approve":
+        return control_plane.text_approve_current_job()
     if path == "/admin/action/reject":
         return control_plane.reject_current_job()
     if path == "/admin/action/retry_publish":
@@ -98,6 +104,10 @@ def dispatch_dashboard_action(path, fields=None):
             headline=values.get("headline") or None,
             caption=values.get("caption") or None,
         )
+    if path == "/admin/action/post_type":
+        return control_plane.set_post_type(values.get("post_type"))
+    if path == "/admin/action/windy_layer":
+        return control_plane.set_windy_layer(values.get("windy_layer"))
 
     raise ValueError("Unknown dashboard action.")
 
@@ -159,6 +169,13 @@ def current_job_summary():
             "headline": None,
             "facebook_caption": None,
             "image": None,
+            "post_type": "image",
+            "available_post_types": ["image", "text"],
+            "suggested_post_type": None,
+            "windy_layer": None,
+            "windy_layer_label": None,
+            "suggested_windy_layer": None,
+            "windy_url": None,
         }
 
     return {
@@ -173,6 +190,16 @@ def current_job_summary():
             or job.get("caption")
         ),
         "image": job.get("image"),
+        "post_type": job.get("post_type", "image"),
+        "available_post_types": job.get(
+            "available_post_types",
+            ["image", "text"],
+        ),
+        "suggested_post_type": job.get("suggested_post_type"),
+        "windy_layer": job.get("windy_layer"),
+        "windy_layer_label": job.get("windy_layer_label"),
+        "suggested_windy_layer": job.get("suggested_windy_layer"),
+        "windy_url": job.get("windy_url"),
     }
 
 
@@ -242,12 +269,30 @@ def safe_scheduler_status():
     }
 
 
-def get_last_error(job, facebook_status, template_status, scheduler_status):
+def safe_windy_status():
+    status = get_windy_layer_status()
+    return {
+        "validation_status": status.get("validation_status"),
+        "last_validation_error": status.get("last_validation_error"),
+        "default_layer": status.get("default_layer"),
+        "rotation_enabled": status.get("rotation_enabled"),
+        "enabled_layers": status.get("enabled_layers"),
+    }
+
+
+def get_last_error(
+    job,
+    facebook_status,
+    template_status,
+    scheduler_status,
+    windy_status,
+):
     return (
         job.get("last_error")
         or facebook_status.get("last_error")
         or template_status.get("last_validation_error")
         or scheduler_status.get("last_validation_error")
+        or windy_status.get("last_validation_error")
     )
 
 
@@ -256,18 +301,21 @@ def build_health_payload():
     facebook_status = safe_facebook_status()
     template_status = safe_template_status()
     scheduler_status = safe_scheduler_status()
+    windy_status = safe_windy_status()
     state_files = get_state_file_status()
     facebook_health = facebook_status.get("status") not in {"invalid", "missing"}
     template_health = template_status.get("validation_status") == "valid"
     scheduler_health = (
         scheduler_status.get("validation_status") == "valid"
     )
+    windy_health = windy_status.get("validation_status") == "valid"
 
     return {
         "ok": bool(
             facebook_health
             and template_health
             and scheduler_health
+            and windy_health
         ),
         "app_version": APP_VERSION,
         "started_at": STARTED_AT.isoformat(timespec="seconds"),
@@ -281,6 +329,14 @@ def build_health_payload():
         "current_job_id": job.get("job_id"),
         "current_provider": job.get("provider"),
         "current_image_available": get_current_image_path() is not None,
+        "current_post_type": job.get("post_type"),
+        "available_post_types": job.get("available_post_types"),
+        "suggested_post_type": job.get("suggested_post_type"),
+        "current_windy_layer": job.get("windy_layer"),
+        "windy_layer_label": job.get("windy_layer_label"),
+        "suggested_windy_layer": job.get("suggested_windy_layer"),
+        "current_windy_url": job.get("windy_url"),
+        "windy_status": windy_status,
         "framing_decision": job.get("framing_decision"),
         "dashboard_actions_enabled": dashboard_actions_enabled(),
         "admin_secret_configured": is_admin_secret_configured(),
@@ -289,6 +345,7 @@ def build_health_payload():
             facebook_status,
             template_status,
             scheduler_status,
+            windy_status,
         ),
         "facebook_status": {
             "source": facebook_status.get("token_source"),
@@ -421,6 +478,16 @@ def dashboard_script():
       setField("job.status", data.current_job_status);
       setField("job.id", data.current_job_id);
       setField("job.provider", data.current_provider);
+      setField("job.post_type", data.current_post_type);
+      setField(
+        "job.available_post_types",
+        (data.available_post_types || []).join(", ")
+      );
+      setField("job.suggested_post_type", data.suggested_post_type);
+      setField("job.windy_layer", data.current_windy_layer);
+      setField("job.windy_layer_label", data.windy_layer_label);
+      setField("job.suggested_windy_layer", data.suggested_windy_layer);
+      setField("job.windy_url", data.current_windy_url);
       const preview = document.querySelector("[data-current-image]");
       if (preview) {
         preview.hidden = !data.current_image_available;
@@ -482,12 +549,14 @@ def render_admin_page(message=None, message_is_error=False):
     facebook_status = safe_facebook_status()
     template_status = safe_template_status()
     scheduler_status = safe_scheduler_status()
+    windy_status = safe_windy_status()
     state_files = get_state_file_status()
     last_error = get_last_error(
         job,
         facebook_status,
         template_status,
         scheduler_status,
+        windy_status,
     )
 
     current_status = job.get("status") or "none"
@@ -503,6 +572,22 @@ def render_admin_page(message=None, message_is_error=False):
         "enabled"
         if scheduler_status.get("auto_reject_before_next_run")
         else "disabled"
+    )
+    post_type_options = "".join(
+        (
+            f'<option value="{html.escape(post_type)}" '
+            f'{"selected" if job.get("post_type") == post_type else ""}>'
+            f'{html.escape(post_type.replace("_", " ").title())}</option>'
+        )
+        for post_type in job.get("available_post_types") or ["image", "text"]
+    )
+    windy_layer_options = "".join(
+        (
+            f'<option value="{html.escape(layer["id"])}" '
+            f'{"selected" if job.get("windy_layer") == layer["id"] else ""}>'
+            f'{html.escape(layer["label"])}</option>'
+        )
+        for layer in windy_status.get("enabled_layers") or []
     )
     notice_html = ""
     if message:
@@ -562,7 +647,7 @@ def render_admin_page(message=None, message_is_error=False):
       margin: 10px 0 5px;
       font-weight: 600;
     }}
-    input, textarea {{
+    input, textarea, select {{
       box-sizing: border-box;
       width: 100%;
       padding: 9px;
@@ -678,7 +763,7 @@ def render_admin_page(message=None, message_is_error=False):
         background: #171d21;
         border-color: #2b363c;
       }}
-      input, textarea {{
+      input, textarea, select {{
         background: #101417;
         color: #edf3f6;
         border-color: #46545c;
@@ -733,7 +818,11 @@ def render_admin_page(message=None, message_is_error=False):
         </form>
         <form method="post" action="/admin/action/approve">
           <input type="password" name="admin_secret" placeholder="Admin secret" autocomplete="off">
-          <button type="submit">Approve</button>
+          <button type="submit">Approve as Image</button>
+        </form>
+        <form method="post" action="/admin/action/text_approve">
+          <input type="password" name="admin_secret" placeholder="Admin secret" autocomplete="off">
+          <button type="submit">Approve as Text</button>
         </form>
         <form method="post" action="/admin/action/reject">
           <input type="password" name="admin_secret" placeholder="Admin secret" autocomplete="off">
@@ -754,6 +843,29 @@ def render_admin_page(message=None, message_is_error=False):
         <div class="action-row" style="margin-top: 10px;">
           <button type="submit">Save Modify</button>
         </div>
+      </form>
+      <form method="post" action="/admin/action/post_type">
+        <label for="post-type">Facebook Post Type</label>
+        <select id="post-type" name="post_type">
+          {post_type_options}
+        </select>
+        <label for="post-type-secret">Admin Secret</label>
+        <input id="post-type-secret" type="password" name="admin_secret" autocomplete="off">
+        <div class="action-row" style="margin-top: 10px;">
+          <button type="submit">Set Post Type</button>
+        </div>
+      </form>
+      <form method="post" action="/admin/action/windy_layer">
+        <label for="windy-layer">Windy Layer</label>
+        <select id="windy-layer" name="windy_layer">
+          {windy_layer_options}
+        </select>
+        <label for="windy-layer-secret">Admin Secret</label>
+        <input id="windy-layer-secret" type="password" name="admin_secret" autocomplete="off">
+        <div class="action-row" style="margin-top: 10px;">
+          <button type="submit">Set Windy Layer</button>
+        </div>
+        <p class="subtle">Updates metadata only. The current graphic is not recaptured.</p>
       </form>
     </section>
     <section class="controls">
@@ -781,6 +893,13 @@ def render_admin_page(message=None, message_is_error=False):
             ("Job ID", job.get("job_id"), "job.id"),
             ("Status", job.get("status"), "job.status"),
             ("Provider", job.get("provider"), "job.provider"),
+            ("Post Type", job.get("post_type"), "job.post_type"),
+            ("Available Types", ", ".join(job.get("available_post_types") or []), "job.available_post_types"),
+            ("Suggested Type", job.get("suggested_post_type"), "job.suggested_post_type"),
+            ("Windy Layer", job.get("windy_layer"), "job.windy_layer"),
+            ("Windy Label", job.get("windy_layer_label"), "job.windy_layer_label"),
+            ("Suggested Windy Layer", job.get("suggested_windy_layer"), "job.suggested_windy_layer"),
+            ("Windy URL", job.get("windy_url"), "job.windy_url"),
             ("Headline", job.get("headline"), "job.headline"),
             ("Facebook Caption", job.get("facebook_caption"), "job.caption"),
             ("Final Image", job.get("image"), "job.image"),
@@ -834,6 +953,21 @@ def render_admin_page(message=None, message_is_error=False):
                     for job in scheduler_status.get("next_runs", [])
                 ) or "none",
                 "scheduler.next_runs",
+            ),
+        ])}</table>
+      </section>
+      <section>
+        <h2>Windy Layers</h2>
+        <table>{table_rows([
+            ("Validation", windy_status.get("validation_status")),
+            ("Default", windy_status.get("default_layer")),
+            ("Rotation", windy_status.get("rotation_enabled")),
+            (
+                "Enabled",
+                ", ".join(
+                    layer["id"]
+                    for layer in windy_status.get("enabled_layers", [])
+                ) or "none",
             ),
         ])}</table>
       </section>
@@ -1032,12 +1166,28 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
                 "Current job approved and published. "
                 f"Post ID: {result.get('facebook_post_id') or 'unknown'}"
             )
+        elif parsed.path == "/admin/action/text_approve":
+            message = (
+                "Current job approved and published as text. "
+                f"Post ID: {result.get('facebook_post_id') or 'unknown'}"
+            )
         elif parsed.path == "/admin/action/reject":
             message = f"Job {result.get('job_id')} rejected."
         elif parsed.path == "/admin/action/retry_publish":
             message = (
                 "Facebook publish retried successfully. "
                 f"Post ID: {result.get('facebook_post_id') or 'unknown'}"
+            )
+        elif parsed.path == "/admin/action/post_type":
+            message = (
+                "Current job post type changed to "
+                f"{result.get('post_type', 'unknown').upper()}."
+            )
+        elif parsed.path == "/admin/action/windy_layer":
+            message = (
+                "Windy layer metadata changed to "
+                f"{result.get('windy_layer', 'unknown')}. "
+                "The current graphic was not recaptured."
             )
         else:
             message = "Current job modified."

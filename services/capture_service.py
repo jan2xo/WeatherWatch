@@ -57,6 +57,8 @@ def resolve_capture_url(job):
     url = job["url"]
 
     if (job.get("provider") or "").lower() == "windy":
+        if job.get("windy_url"):
+            return job["windy_url"]
         return apply_windy_framing(url, job.get("framing_decision"))
 
     return url

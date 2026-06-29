@@ -1,0 +1,456 @@
+{
+  "version": "1.0",
+  "language": "fil",
+  "area_phrases": {
+    "the western section of the Philippines": {
+      "body": "kanlurang bahagi ng Pilipinas",
+      "headline": "Pilipinas",
+      "short": "Pilipinas"
+    },
+    "the eastern section of the Philippines": {
+      "body": "silangang bahagi ng Pilipinas",
+      "headline": "Pilipinas",
+      "short": "Pilipinas"
+    },
+    "the northern section of the Philippines": {
+      "body": "hilagang bahagi ng Pilipinas",
+      "headline": "Pilipinas",
+      "short": "Pilipinas"
+    },
+    "the southern section of the Philippines": {
+      "body": "katimugang bahagi ng Pilipinas",
+      "headline": "Pilipinas",
+      "short": "Pilipinas"
+    },
+    "the central section of the Philippines": {
+      "body": "gitnang bahagi ng Pilipinas",
+      "headline": "Pilipinas",
+      "short": "Pilipinas"
+    },
+    "the western section of Luzon": {
+      "body": "kanlurang bahagi ng Luzon",
+      "headline": "Luzon",
+      "short": "Luzon"
+    },
+    "the eastern section of Luzon": {
+      "body": "silangang bahagi ng Luzon",
+      "headline": "Luzon",
+      "short": "Luzon"
+    },
+    "the northern section of Luzon": {
+      "body": "hilagang bahagi ng Luzon",
+      "headline": "Luzon",
+      "short": "Luzon"
+    },
+    "the southern section of Luzon": {
+      "body": "katimugang bahagi ng Luzon",
+      "headline": "Luzon",
+      "short": "Luzon"
+    },
+    "the central section of Luzon": {
+      "body": "gitnang bahagi ng Luzon",
+      "headline": "Luzon",
+      "short": "Luzon"
+    },
+    "the western section of Visayas": {
+      "body": "kanlurang bahagi ng Visayas",
+      "headline": "Visayas",
+      "short": "Visayas"
+    },
+    "the eastern section of Visayas": {
+      "body": "silangang bahagi ng Visayas",
+      "headline": "Visayas",
+      "short": "Visayas"
+    },
+    "the northern section of Visayas": {
+      "body": "hilagang bahagi ng Visayas",
+      "headline": "Visayas",
+      "short": "Visayas"
+    },
+    "the southern section of Visayas": {
+      "body": "katimugang bahagi ng Visayas",
+      "headline": "Visayas",
+      "short": "Visayas"
+    },
+    "the central section of Visayas": {
+      "body": "gitnang bahagi ng Visayas",
+      "headline": "Visayas",
+      "short": "Visayas"
+    },
+    "the western section of Mindanao": {
+      "body": "kanlurang bahagi ng Mindanao",
+      "headline": "Mindanao",
+      "short": "Mindanao"
+    },
+    "the eastern section of Mindanao": {
+      "body": "silangang bahagi ng Mindanao",
+      "headline": "Mindanao",
+      "short": "Mindanao"
+    },
+    "the northern section of Mindanao": {
+      "body": "hilagang bahagi ng Mindanao",
+      "headline": "Mindanao",
+      "short": "Mindanao"
+    },
+    "the southern section of Mindanao": {
+      "body": "katimugang bahagi ng Mindanao",
+      "headline": "Mindanao",
+      "short": "Mindanao"
+    },
+    "the central section of Mindanao": {
+      "body": "gitnang bahagi ng Mindanao",
+      "headline": "Mindanao",
+      "short": "Mindanao"
+    },
+    "the western section of Northern Luzon": {
+      "body": "kanlurang bahagi ng Hilagang Luzon",
+      "headline": "Hilagang Luzon",
+      "short": "Hilagang Luzon"
+    },
+    "the eastern section of Northern Luzon": {
+      "body": "silangang bahagi ng Hilagang Luzon",
+      "headline": "Hilagang Luzon",
+      "short": "Hilagang Luzon"
+    },
+    "the northern section of Northern Luzon": {
+      "body": "hilagang bahagi ng Hilagang Luzon",
+      "headline": "Hilagang Luzon",
+      "short": "Hilagang Luzon"
+    },
+    "the southern section of Northern Luzon": {
+      "body": "katimugang bahagi ng Hilagang Luzon",
+      "headline": "Hilagang Luzon",
+      "short": "Hilagang Luzon"
+    },
+    "the central section of Northern Luzon": {
+      "body": "gitnang bahagi ng Hilagang Luzon",
+      "headline": "Hilagang Luzon",
+      "short": "Hilagang Luzon"
+    },
+    "the western section of Central Luzon": {
+      "body": "kanlurang bahagi ng Gitnang Luzon",
+      "headline": "Gitnang Luzon",
+      "short": "Gitnang Luzon"
+    },
+    "the eastern section of Central Luzon": {
+      "body": "silangang bahagi ng Gitnang Luzon",
+      "headline": "Gitnang Luzon",
+      "short": "Gitnang Luzon"
+    },
+    "the northern section of Central Luzon": {
+      "body": "hilagang bahagi ng Gitnang Luzon",
+      "headline": "Gitnang Luzon",
+      "short": "Gitnang Luzon"
+    },
+    "the southern section of Central Luzon": {
+      "body": "katimugang bahagi ng Gitnang Luzon",
+      "headline": "Gitnang Luzon",
+      "short": "Gitnang Luzon"
+    },
+    "the central section of Central Luzon": {
+      "body": "gitnang bahagi ng Gitnang Luzon",
+      "headline": "Gitnang Luzon",
+      "short": "Gitnang Luzon"
+    },
+    "the western section of Southern Luzon": {
+      "body": "kanlurang bahagi ng Timog Luzon",
+      "headline": "Timog Luzon",
+      "short": "Timog Luzon"
+    },
+    "the eastern section of Southern Luzon": {
+      "body": "silangang bahagi ng Timog Luzon",
+      "headline": "Timog Luzon",
+      "short": "Timog Luzon"
+    },
+    "the northern section of Southern Luzon": {
+      "body": "hilagang bahagi ng Timog Luzon",
+      "headline": "Timog Luzon",
+      "short": "Timog Luzon"
+    },
+    "the southern section of Southern Luzon": {
+      "body": "katimugang bahagi ng Timog Luzon",
+      "headline": "Timog Luzon",
+      "short": "Timog Luzon"
+    },
+    "the central section of Southern Luzon": {
+      "body": "gitnang bahagi ng Timog Luzon",
+      "headline": "Timog Luzon",
+      "short": "Timog Luzon"
+    },
+    "the western section of Western Luzon": {
+      "body": "kanlurang bahagi ng Kanlurang Luzon",
+      "headline": "Kanlurang Luzon",
+      "short": "Kanlurang Luzon"
+    },
+    "the eastern section of Western Luzon": {
+      "body": "silangang bahagi ng Kanlurang Luzon",
+      "headline": "Kanlurang Luzon",
+      "short": "Kanlurang Luzon"
+    },
+    "the northern section of Western Luzon": {
+      "body": "hilagang bahagi ng Kanlurang Luzon",
+      "headline": "Kanlurang Luzon",
+      "short": "Kanlurang Luzon"
+    },
+    "the southern section of Western Luzon": {
+      "body": "katimugang bahagi ng Kanlurang Luzon",
+      "headline": "Kanlurang Luzon",
+      "short": "Kanlurang Luzon"
+    },
+    "the central section of Western Luzon": {
+      "body": "gitnang bahagi ng Kanlurang Luzon",
+      "headline": "Kanlurang Luzon",
+      "short": "Kanlurang Luzon"
+    },
+    "the western section of Eastern Luzon": {
+      "body": "kanlurang bahagi ng Silangang Luzon",
+      "headline": "Silangang Luzon",
+      "short": "Silangang Luzon"
+    },
+    "the eastern section of Eastern Luzon": {
+      "body": "silangang bahagi ng Silangang Luzon",
+      "headline": "Silangang Luzon",
+      "short": "Silangang Luzon"
+    },
+    "the northern section of Eastern Luzon": {
+      "body": "hilagang bahagi ng Silangang Luzon",
+      "headline": "Silangang Luzon",
+      "short": "Silangang Luzon"
+    },
+    "the southern section of Eastern Luzon": {
+      "body": "katimugang bahagi ng Silangang Luzon",
+      "headline": "Silangang Luzon",
+      "short": "Silangang Luzon"
+    },
+    "the central section of Eastern Luzon": {
+      "body": "gitnang bahagi ng Silangang Luzon",
+      "headline": "Silangang Luzon",
+      "short": "Silangang Luzon"
+    },
+    "the western section of Northern Visayas": {
+      "body": "kanlurang bahagi ng Hilagang Visayas",
+      "headline": "Hilagang Visayas",
+      "short": "Hilagang Visayas"
+    },
+    "the eastern section of Northern Visayas": {
+      "body": "silangang bahagi ng Hilagang Visayas",
+      "headline": "Hilagang Visayas",
+      "short": "Hilagang Visayas"
+    },
+    "the northern section of Northern Visayas": {
+      "body": "hilagang bahagi ng Hilagang Visayas",
+      "headline": "Hilagang Visayas",
+      "short": "Hilagang Visayas"
+    },
+    "the southern section of Northern Visayas": {
+      "body": "katimugang bahagi ng Hilagang Visayas",
+      "headline": "Hilagang Visayas",
+      "short": "Hilagang Visayas"
+    },
+    "the central section of Northern Visayas": {
+      "body": "gitnang bahagi ng Hilagang Visayas",
+      "headline": "Hilagang Visayas",
+      "short": "Hilagang Visayas"
+    },
+    "the western section of Central Visayas": {
+      "body": "kanlurang bahagi ng Gitnang Visayas",
+      "headline": "Gitnang Visayas",
+      "short": "Gitnang Visayas"
+    },
+    "the eastern section of Central Visayas": {
+      "body": "silangang bahagi ng Gitnang Visayas",
+      "headline": "Gitnang Visayas",
+      "short": "Gitnang Visayas"
+    },
+    "the northern section of Central Visayas": {
+      "body": "hilagang bahagi ng Gitnang Visayas",
+      "headline": "Gitnang Visayas",
+      "short": "Gitnang Visayas"
+    },
+    "the southern section of Central Visayas": {
+      "body": "katimugang bahagi ng Gitnang Visayas",
+      "headline": "Gitnang Visayas",
+      "short": "Gitnang Visayas"
+    },
+    "the central section of Central Visayas": {
+      "body": "gitnang bahagi ng Gitnang Visayas",
+      "headline": "Gitnang Visayas",
+      "short": "Gitnang Visayas"
+    },
+    "the western section of Western Visayas": {
+      "body": "kanlurang bahagi ng Kanlurang Visayas",
+      "headline": "Kanlurang Visayas",
+      "short": "Kanlurang Visayas"
+    },
+    "the eastern section of Western Visayas": {
+      "body": "silangang bahagi ng Kanlurang Visayas",
+      "headline": "Kanlurang Visayas",
+      "short": "Kanlurang Visayas"
+    },
+    "the northern section of Western Visayas": {
+      "body": "hilagang bahagi ng Kanlurang Visayas",
+      "headline": "Kanlurang Visayas",
+      "short": "Kanlurang Visayas"
+    },
+    "the southern section of Western Visayas": {
+      "body": "katimugang bahagi ng Kanlurang Visayas",
+      "headline": "Kanlurang Visayas",
+      "short": "Kanlurang Visayas"
+    },
+    "the central section of Western Visayas": {
+      "body": "gitnang bahagi ng Kanlurang Visayas",
+      "headline": "Kanlurang Visayas",
+      "short": "Kanlurang Visayas"
+    },
+    "the western section of Eastern Visayas": {
+      "body": "kanlurang bahagi ng Silangang Visayas",
+      "headline": "Silangang Visayas",
+      "short": "Silangang Visayas"
+    },
+    "the eastern section of Eastern Visayas": {
+      "body": "silangang bahagi ng Silangang Visayas",
+      "headline": "Silangang Visayas",
+      "short": "Silangang Visayas"
+    },
+    "the northern section of Eastern Visayas": {
+      "body": "hilagang bahagi ng Silangang Visayas",
+      "headline": "Silangang Visayas",
+      "short": "Silangang Visayas"
+    },
+    "the southern section of Eastern Visayas": {
+      "body": "katimugang bahagi ng Silangang Visayas",
+      "headline": "Silangang Visayas",
+      "short": "Silangang Visayas"
+    },
+    "the central section of Eastern Visayas": {
+      "body": "gitnang bahagi ng Silangang Visayas",
+      "headline": "Silangang Visayas",
+      "short": "Silangang Visayas"
+    },
+    "the western section of Northern Mindanao": {
+      "body": "kanlurang bahagi ng Hilagang Mindanao",
+      "headline": "Hilagang Mindanao",
+      "short": "Hilagang Mindanao"
+    },
+    "the eastern section of Northern Mindanao": {
+      "body": "silangang bahagi ng Hilagang Mindanao",
+      "headline": "Hilagang Mindanao",
+      "short": "Hilagang Mindanao"
+    },
+    "the northern section of Northern Mindanao": {
+      "body": "hilagang bahagi ng Hilagang Mindanao",
+      "headline": "Hilagang Mindanao",
+      "short": "Hilagang Mindanao"
+    },
+    "the southern section of Northern Mindanao": {
+      "body": "katimugang bahagi ng Hilagang Mindanao",
+      "headline": "Hilagang Mindanao",
+      "short": "Hilagang Mindanao"
+    },
+    "the central section of Northern Mindanao": {
+      "body": "gitnang bahagi ng Hilagang Mindanao",
+      "headline": "Hilagang Mindanao",
+      "short": "Hilagang Mindanao"
+    },
+    "the western section of Southern Mindanao": {
+      "body": "kanlurang bahagi ng Timog Mindanao",
+      "headline": "Timog Mindanao",
+      "short": "Timog Mindanao"
+    },
+    "the eastern section of Southern Mindanao": {
+      "body": "silangang bahagi ng Timog Mindanao",
+      "headline": "Timog Mindanao",
+      "short": "Timog Mindanao"
+    },
+    "the northern section of Southern Mindanao": {
+      "body": "hilagang bahagi ng Timog Mindanao",
+      "headline": "Timog Mindanao",
+      "short": "Timog Mindanao"
+    },
+    "the southern section of Southern Mindanao": {
+      "body": "katimugang bahagi ng Timog Mindanao",
+      "headline": "Timog Mindanao",
+      "short": "Timog Mindanao"
+    },
+    "the central section of Southern Mindanao": {
+      "body": "gitnang bahagi ng Timog Mindanao",
+      "headline": "Timog Mindanao",
+      "short": "Timog Mindanao"
+    },
+    "the western section of Western Mindanao": {
+      "body": "kanlurang bahagi ng Kanlurang Mindanao",
+      "headline": "Kanlurang Mindanao",
+      "short": "Kanlurang Mindanao"
+    },
+    "the eastern section of Western Mindanao": {
+      "body": "silangang bahagi ng Kanlurang Mindanao",
+      "headline": "Kanlurang Mindanao",
+      "short": "Kanlurang Mindanao"
+    },
+    "the northern section of Western Mindanao": {
+      "body": "hilagang bahagi ng Kanlurang Mindanao",
+      "headline": "Kanlurang Mindanao",
+      "short": "Kanlurang Mindanao"
+    },
+    "the southern section of Western Mindanao": {
+      "body": "katimugang bahagi ng Kanlurang Mindanao",
+      "headline": "Kanlurang Mindanao",
+      "short": "Kanlurang Mindanao"
+    },
+    "the central section of Western Mindanao": {
+      "body": "gitnang bahagi ng Kanlurang Mindanao",
+      "headline": "Kanlurang Mindanao",
+      "short": "Kanlurang Mindanao"
+    },
+    "the western section of Eastern Mindanao": {
+      "body": "kanlurang bahagi ng Silangang Mindanao",
+      "headline": "Silangang Mindanao",
+      "short": "Silangang Mindanao"
+    },
+    "the eastern section of Eastern Mindanao": {
+      "body": "silangang bahagi ng Silangang Mindanao",
+      "headline": "Silangang Mindanao",
+      "short": "Silangang Mindanao"
+    },
+    "the northern section of Eastern Mindanao": {
+      "body": "hilagang bahagi ng Silangang Mindanao",
+      "headline": "Silangang Mindanao",
+      "short": "Silangang Mindanao"
+    },
+    "the southern section of Eastern Mindanao": {
+      "body": "katimugang bahagi ng Silangang Mindanao",
+      "headline": "Silangang Mindanao",
+      "short": "Silangang Mindanao"
+    },
+    "the central section of Eastern Mindanao": {
+      "body": "gitnang bahagi ng Silangang Mindanao",
+      "headline": "Silangang Mindanao",
+      "short": "Silangang Mindanao"
+    },
+    "the western section of Central Mindanao": {
+      "body": "kanlurang bahagi ng Gitnang Mindanao",
+      "headline": "Gitnang Mindanao",
+      "short": "Gitnang Mindanao"
+    },
+    "the eastern section of Central Mindanao": {
+      "body": "silangang bahagi ng Gitnang Mindanao",
+      "headline": "Gitnang Mindanao",
+      "short": "Gitnang Mindanao"
+    },
+    "the northern section of Central Mindanao": {
+      "body": "hilagang bahagi ng Gitnang Mindanao",
+      "headline": "Gitnang Mindanao",
+      "short": "Gitnang Mindanao"
+    },
+    "the southern section of Central Mindanao": {
+      "body": "katimugang bahagi ng Gitnang Mindanao",
+      "headline": "Gitnang Mindanao",
+      "short": "Gitnang Mindanao"
+    },
+    "the central section of Central Mindanao": {
+      "body": "gitnang bahagi ng Gitnang Mindanao",
+      "headline": "Gitnang Mindanao",
+      "short": "Gitnang Mindanao"
+    }
+  }
+}

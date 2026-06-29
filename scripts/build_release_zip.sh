@@ -16,7 +16,7 @@ ZIP_NAME="WeatherWatch-${VERSION_TAG}.zip"
 DIST_DIR="dist"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 
-for path in requirements.txt .env.example core/service.py config/caption_templates.pagasa.json config/content_composer.json config/image_rendering.json config/scheduler.json services/map_framing_service.py services/scheduler_config_service.py services/control_plane_service.py; do
+for path in requirements.txt .env.example core/service.py config/caption_templates.pagasa.json config/content_composer.json config/image_rendering.json config/scheduler.json config/language_normalization.json config/post_types.json config/windy_layers.json services/map_framing_service.py services/scheduler_config_service.py services/control_plane_service.py services/language_normalization_service.py services/post_type_config_service.py services/windy_layer_service.py tests/verify_text_post_publisher.py tests/verify_windy_layers.py; do
   [[ -f "$path" ]] || fail "Run this script from the WeatherWatch project root. Missing: $path"
 done
 
@@ -62,6 +62,14 @@ zip -r "$ZIP_PATH" . \
   -x "data/scheduler_uploads/*" \
   -x "data/scheduler_backups/" \
   -x "data/scheduler_backups/*" \
+  -x "data/language_uploads/" \
+  -x "data/language_uploads/*" \
+  -x "data/language_backups/" \
+  -x "data/language_backups/*" \
+  -x "data/windy_uploads/" \
+  -x "data/windy_uploads/*" \
+  -x "data/windy_backups/" \
+  -x "data/windy_backups/*" \
   -x ".DS_Store" \
   -x "*/.DS_Store"
 

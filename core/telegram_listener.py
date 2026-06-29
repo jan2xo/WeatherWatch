@@ -47,6 +47,9 @@ from services.control_plane_service import (
     generate_update,
     reject_current_job as control_reject_current_job,
     retry_publish as control_retry_publish,
+    set_post_type as control_set_post_type,
+    set_windy_layer as control_set_windy_layer,
+    text_approve_current_job as control_text_approve_current_job,
 )
 from services.caption_template_service import (
     TEMPLATE_PATH,
@@ -79,6 +82,28 @@ from services.scheduler_config_service import (
     replace_scheduler_config_from_file,
     scheduler_json_preview,
     starter_scheduler_json,
+)
+from services.language_normalization_service import (
+    CONFIG_PATH as LANGUAGE_CONFIG_PATH,
+    MAX_LANGUAGE_UPLOAD_BYTES,
+    UPLOAD_DIR as LANGUAGE_UPLOAD_DIR,
+    get_language_status,
+    language_json_preview,
+    load_language_config_file,
+    reload_language_config,
+    replace_language_config_from_file,
+    starter_language_json,
+)
+from services.windy_layer_service import (
+    CONFIG_PATH as WINDY_CONFIG_PATH,
+    MAX_WINDY_UPLOAD_BYTES,
+    UPLOAD_DIR as WINDY_UPLOAD_DIR,
+    get_windy_layer_status,
+    load_windy_layer_config_file,
+    reload_windy_layer_config,
+    replace_windy_config_from_file,
+    starter_windy_json,
+    windy_json_preview,
 )
 from config.settings import (
     get_required_env,
@@ -317,14 +342,29 @@ def parse_modify_text(text: str):
 
 def build_preview_caption(job):
     facebook_caption = job.get("captions", {}).get("facebook") or job.get("caption", "")
+    post_type_notice = (
+        "<b>Facebook will publish this as a text-only post.</b>\n\n"
+        if job.get("post_type", "image") == "text"
+        else ""
+    )
+    windy_line = (
+        f"<b>Windy Layer:</b> {job.get('windy_layer_label')}\n"
+        if job.get("windy_layer_label")
+        else ""
+    )
 
     return (
         "✏️ <b>Modified Preview</b>\n\n"
+        f"<b>Post Type:</b> {job.get('post_type', 'image').upper()}\n"
+        f"{windy_line}"
+        f"{post_type_notice}"
         f"<b>GPX Headline:</b>\n{job.get('headline')}\n\n"
         f"<b>Facebook Caption Preview:</b>\n{facebook_caption}\n\n"
         "<b>Commands:</b>\n"
         "/manual\n"
+        "/post_type\n"
         "/approve\n"
+        "/text_approve\n"
         "/reject\n"
         "/retry_publish\n"
         "/fbstatus\n"
@@ -386,8 +426,10 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Admin update flow:\n"
         "/update - Generate a new weather update and send it for approval.\n"
         "/approve - Approve the current job and publish it to Facebook.\n"
+        "/text_approve - Approve the current job as a native Facebook text post.\n"
         "/reject - Reject the current job and move it to history.\n"
         "/retry_publish - Retry Facebook publishing for approved or publish_failed jobs.\n"
+        "/post_type [image|text] - Show or change how the current job publishes.\n"
         "/fbstatus - Show Facebook token and publish status without exposing tokens.\n\n"
         "Facebook token management:\n"
         "/fb_reconnect - Get the local Facebook OAuth reconnect URL.\n"
@@ -414,6 +456,10 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use /image_manual for manual image fit and intelligent map framing configuration.\n\n"
         "Scheduler tools:\n"
         "Use /scheduler_manual for scheduled update configuration.\n\n"
+        "Language tools:\n"
+        "Use /language_manual for PAGASA phrase normalization.\n\n"
+        "Windy tools:\n"
+        "Use /windy_manual for Windy layer configuration and /windy_layer to view or select the current job layer.\n\n"
         "VPS backup reminder:\n"
         "state/ is gitignored but must be backed up. Important files: state/approval_state.json and state/facebook_token_state.json."
     )
@@ -800,6 +846,392 @@ async def scheduler_upload_command(
     )
 
 
+async def language_manual_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "Language Normalization Manual\n\n"
+        "Language normalization converts configured PAGASA area phrases before content composition.\n\n"
+        "Forms:\n"
+        "body - Preserves directional detail for caption prose.\n"
+        "headline - Uses a concise region label for GPX headlines.\n"
+        "short - Uses a compact label for future short surfaces.\n\n"
+        "Commands:\n"
+        "/language_status - Show configuration and phrase coverage status.\n"
+        "/language_show - Show the current JSON or shortened preview.\n"
+        "/language_builder - Download starter JSON.\n"
+        "/language_validate - Validate the saved JSON.\n"
+        "/language_reload - Reload valid JSON without restarting.\n"
+        "/language_upload - Upload, validate, back up, replace, and reload JSON.\n\n"
+        "Uploads must be JSON and no larger than 100 KB. Unknown phrases remain unchanged."
+    )
+
+
+def format_language_status(status):
+    return (
+        "Language Normalization Status\n\n"
+        f"Config: {status.get('config_path')}\n"
+        f"Version: {status.get('version') or 'Unknown'}\n"
+        f"Language: {status.get('language') or 'Unknown'}\n"
+        f"Phrases: {status.get('phrase_count', 0)}\n"
+        f"Validation: {status.get('validation_status')}\n"
+        f"Last loaded: {status.get('last_loaded') or 'Never'}\n"
+        f"Last error: {status.get('last_validation_error') or 'None'}"
+    )
+
+
+async def language_status_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        format_language_status(get_language_status())
+    )
+
+
+async def language_show_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        text = language_json_preview()
+    except Exception as error:
+        await update.message.reply_text(
+            f"Language preview failed: {error}"
+        )
+        return
+
+    await update.message.reply_text(
+        f"<pre>{html.escape(text, quote=False)}</pre>",
+        parse_mode="HTML",
+    )
+
+
+async def language_builder_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    document = io.BytesIO(starter_language_json().encode("utf-8"))
+    document.name = "language_normalization.starter.json"
+    await update.message.reply_document(
+        document=document,
+        filename="language_normalization.starter.json",
+        caption="Starter PAGASA language normalization configuration.",
+    )
+
+
+async def language_validate_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        load_language_config_file(LANGUAGE_CONFIG_PATH)
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Language validation failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text(
+        "✅ Language normalization configuration is valid."
+    )
+
+
+async def language_reload_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        reload_language_config()
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Language reload failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text(
+        "✅ Language normalization configuration reloaded."
+    )
+
+
+async def language_upload_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    message = update.message
+
+    if not message.document:
+        await message.reply_text(
+            "Attach a JSON file with this command:\n\n/language_upload"
+        )
+        return
+
+    document = message.document
+    filename = document.file_name or ""
+    if not filename.lower().endswith(".json"):
+        await message.reply_text(
+            "Upload rejected. The attached file must be JSON."
+        )
+        return
+    if document.file_size and document.file_size > MAX_LANGUAGE_UPLOAD_BYTES:
+        await message.reply_text("Language upload rejected: file too large.")
+        return
+
+    temp_path = (
+        LANGUAGE_UPLOAD_DIR
+        / f"language_upload.{uuid.uuid4().hex}.json"
+    )
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        file = await context.bot.get_file(document.file_id)
+        await file.download_to_drive(str(temp_path))
+        status = await asyncio.to_thread(
+            replace_language_config_from_file,
+            temp_path,
+        )
+    except json.JSONDecodeError:
+        await message.reply_text(
+            "⚠️ Language upload failed. JSON could not be parsed."
+        )
+        return
+    except ValueError as error:
+        await message.reply_text(
+            f"⚠️ Language upload failed.\n\n{error}"
+        )
+        return
+    except Exception:
+        await message.reply_text("⚠️ Language upload failed safely.")
+        return
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    await message.reply_text(
+        "✅ Language normalization configuration uploaded and reloaded.\n\n"
+        f"{format_language_status(status)}"
+    )
+
+
+async def windy_manual_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        "Windy Layer Manual\n\n"
+        "Windy layers control the map visualization used before provider capture. Satellite is the recommended default.\n\n"
+        "Suggestion rules may recommend a layer from forecast context, but rotation is disabled by default and WeatherWatch does not silently change the selected layer.\n\n"
+        "Runtime:\n"
+        "/windy_layer - Show the current, suggested, and enabled layers.\n"
+        "/windy_layer LAYER - Change current-job layer metadata. Existing graphics are not recaptured in v0.8.7.\n\n"
+        "Configuration:\n"
+        "/windy_status - Show validation and enabled-layer status.\n"
+        "/windy_show - Show current JSON or a shortened preview.\n"
+        "/windy_builder - Download starter JSON.\n"
+        "/windy_validate - Validate the saved JSON.\n"
+        "/windy_reload - Reload valid JSON without restarting.\n"
+        "/windy_upload - Upload, validate, back up, replace, and reload JSON.\n\n"
+        "Uploads must be JSON and no larger than 100 KB."
+    )
+
+
+def format_windy_status(status):
+    enabled = ", ".join(
+        layer["id"] for layer in status.get("enabled_layers", [])
+    ) or "None"
+    disabled = ", ".join(
+        layer["id"] for layer in status.get("disabled_layers", [])
+    ) or "None"
+    return (
+        "Windy Layer Status\n\n"
+        f"Config: {status.get('config_path')}\n"
+        f"Version: {status.get('version') or 'Unknown'}\n"
+        f"Validation: {status.get('validation_status')}\n"
+        f"Last loaded: {status.get('last_loaded') or 'Never'}\n"
+        f"Last error: {status.get('last_validation_error') or 'None'}\n"
+        f"Default layer: {status.get('default_layer') or 'Unknown'}\n"
+        f"Rotation enabled: {status.get('rotation_enabled')}\n"
+        f"Enabled layers: {enabled}\n"
+        f"Disabled layers: {disabled}"
+    )
+
+
+async def windy_status_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    await update.message.reply_text(
+        format_windy_status(get_windy_layer_status())
+    )
+
+
+async def windy_show_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        text = windy_json_preview()
+    except Exception as error:
+        await update.message.reply_text(f"Windy preview failed: {error}")
+        return
+
+    await update.message.reply_text(
+        f"<pre>{html.escape(text, quote=False)}</pre>",
+        parse_mode="HTML",
+    )
+
+
+async def windy_builder_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    document = io.BytesIO(starter_windy_json().encode("utf-8"))
+    document.name = "windy_layers.starter.json"
+    await update.message.reply_document(
+        document=document,
+        filename="windy_layers.starter.json",
+        caption="Starter Windy layer configuration.",
+    )
+
+
+async def windy_validate_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        load_windy_layer_config_file(WINDY_CONFIG_PATH)
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Windy validation failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text("✅ Windy layer configuration is valid.")
+
+
+async def windy_reload_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        reload_windy_layer_config()
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Windy reload failed.\n\n{error}"
+        )
+        return
+
+    await update.message.reply_text("✅ Windy layer configuration reloaded.")
+
+
+async def windy_upload_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    message = update.message
+    if not message.document:
+        await message.reply_text(
+            "Attach a JSON file with this command:\n\n/windy_upload"
+        )
+        return
+
+    document = message.document
+    filename = document.file_name or ""
+    if not filename.lower().endswith(".json"):
+        await message.reply_text(
+            "Upload rejected. The attached file must be JSON."
+        )
+        return
+    if document.file_size and document.file_size > MAX_WINDY_UPLOAD_BYTES:
+        await message.reply_text("Windy upload rejected: file too large.")
+        return
+
+    temp_path = WINDY_UPLOAD_DIR / f"windy_upload.{uuid.uuid4().hex}.json"
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        file = await context.bot.get_file(document.file_id)
+        await file.download_to_drive(str(temp_path))
+        status = await asyncio.to_thread(
+            replace_windy_config_from_file,
+            temp_path,
+        )
+    except json.JSONDecodeError:
+        await message.reply_text(
+            "⚠️ Windy upload failed. JSON could not be parsed."
+        )
+        return
+    except ValueError as error:
+        await message.reply_text(f"⚠️ Windy upload failed.\n\n{error}")
+        return
+    except Exception:
+        await message.reply_text("⚠️ Windy upload failed safely.")
+        return
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    await message.reply_text(
+        "✅ Windy layer configuration uploaded and reloaded.\n\n"
+        f"{format_windy_status(status)}"
+    )
+
+
+async def windy_layer_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    job = get_current_job()
+    if not job:
+        await update.message.reply_text("No current job.")
+        return
+    if (job.get("provider") or "").lower() != "windy":
+        await update.message.reply_text(
+            "The current job does not use the Windy provider."
+        )
+        return
+
+    if not context.args:
+        status = get_windy_layer_status()
+        enabled = ", ".join(
+            layer["id"] for layer in status.get("enabled_layers", [])
+        )
+        await send_job_preview(
+            update,
+            job,
+            "Current Windy Layer\n\n"
+            f"Selected: {job.get('windy_layer') or status.get('default_layer')}\n"
+            f"Label: {job.get('windy_layer_label') or 'Unknown'}\n"
+            f"Suggested: {job.get('suggested_windy_layer') or 'Unknown'}\n"
+            f"Enabled: {enabled or 'None'}",
+        )
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /windy_layer LAYER")
+        return
+
+    try:
+        result = await asyncio.to_thread(
+            control_set_windy_layer,
+            context.args[0],
+        )
+    except Exception as error:
+        await update.message.reply_text(
+            f"Windy layer was not changed.\n\n{error}"
+        )
+        return
+
+    await send_job_preview(
+        update,
+        result["job"],
+        "✅ Windy layer metadata updated.\n\n"
+        f"Selected: {result['windy_layer']}\n"
+        f"URL: {result['windy_url']}\n\n"
+        "The existing screenshot and final graphic were not recaptured. "
+        "The selected layer applies when the job is generated or captured again.",
+    )
+
+
 async def template_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Caption Template Manual\n\n"
@@ -1132,6 +1564,18 @@ async def config_upload_document_handler(
         re.IGNORECASE,
     ):
         handler = scheduler_upload_command
+    elif re.match(
+        r"^\s*/language_upload(?:@\w+)?(?:\s|$)",
+        caption,
+        re.IGNORECASE,
+    ):
+        handler = language_upload_command
+    elif re.match(
+        r"^\s*/windy_upload(?:@\w+)?(?:\s|$)",
+        caption,
+        re.IGNORECASE,
+    ):
+        handler = windy_upload_command
     else:
         return
 
@@ -1155,7 +1599,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "WeatherWatch Service: RUNNING ✅\n\n"
         f"Current Job: {job['job_id']}\n"
         f"Status: {job['status']}\n"
+        f"Post Type: {job.get('post_type', 'image').upper()}\n"
         f"Provider: {format_provider_display(job)}\n"
+        f"Windy Layer: {job.get('windy_layer_label') or 'N/A'}\n"
         f"Source: {job.get('source')}\n\n"
         f"GPX Headline:\n{job.get('headline')}\n\n"
         f"Facebook Caption Preview:\n{current_job_caption_preview(job)}"
@@ -1174,10 +1620,12 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⏭ Weather update skipped.\n\n"
                 f"Current job: {current_job.get('job_id')}\n"
                 f"Status: {current_job.get('status')}\n"
-                f"Provider: {format_provider_display(current_job)}\n\n"
+                f"Post Type: {current_job.get('post_type', 'image').upper()}\n"
+                f"Provider: {format_provider_display(current_job)}\n"
+                f"Windy Layer: {current_job.get('windy_layer_label') or 'N/A'}\n\n"
                 f"GPX Headline:\n{current_job.get('headline') or 'None'}\n\n"
                 f"Facebook Caption Preview:\n{current_job_caption_preview(current_job) or 'None'}\n\n"
-                "Use /approve, /reject, /modify, /retry_publish, or /fbstatus first."
+                "Use /approve, /text_approve, /reject, /modify, /retry_publish, or /fbstatus first."
             )
             await send_job_preview(update, current_job, skipped_caption)
 
@@ -1207,6 +1655,26 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def text_approve_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    try:
+        result = await asyncio.to_thread(
+            control_text_approve_current_job
+        )
+
+        await update.message.reply_text(
+            f"✅ Approved current job as text: {result.get('job_id')}\n\n"
+            "🚀 Published to Facebook as a native text post.\n\n"
+            f"Post ID: {result.get('facebook_post_id')}"
+        )
+    except Exception as error:
+        await update.message.reply_text(
+            f"⚠️ Text approval or Facebook publish failed.\n\n{error}"
+        )
+
+
 async def retry_publish_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         result = await asyncio.to_thread(control_retry_publish)
@@ -1221,6 +1689,65 @@ async def retry_publish_command(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text(
             f"⚠️ Facebook publish failed.\n\n{error}"
         )
+
+
+async def post_type_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    job = get_current_job()
+
+    if not job:
+        await update.message.reply_text("No current job.")
+        return
+
+    if not context.args:
+        available = job.get("available_post_types") or ["image", "text"]
+        lines = [
+            "Current Post Type",
+            "",
+            f"Post Type: {job.get('post_type', 'image').upper()}",
+            "Available: " + ", ".join(item.upper() for item in available),
+        ]
+        if job.get("suggested_post_type"):
+            lines.append(
+                "Suggested: "
+                f"{job.get('suggested_post_type').upper()}"
+            )
+        if job.get("post_type", "image") == "text":
+            lines.extend([
+                "",
+                "Facebook will publish the caption as a text-only post.",
+            ])
+        await send_job_preview(update, job, "\n".join(lines))
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text(
+            "Usage: /post_type image or /post_type text"
+        )
+        return
+
+    try:
+        result = await asyncio.to_thread(
+            control_set_post_type,
+            context.args[0],
+        )
+    except Exception as error:
+        await update.message.reply_text(
+            f"Post type was not changed.\n\n{error}"
+        )
+        return
+
+    updated_job = result["job"]
+    selected = result["post_type"].upper()
+    notice = (
+        "\n\nFacebook will publish the caption as a text-only post."
+        if result["post_type"] == "text"
+        else ""
+    )
+    await send_job_preview(
+        update,
+        updated_job,
+        f"Post Type: {selected}{notice}",
+    )
 
 
 async def fbstatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1249,6 +1776,7 @@ async def fbstatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Current Job",
             f"Job ID: {job.get('job_id')}",
             f"Status: {job.get('status')}",
+            f"Post Type: {job.get('post_type', 'image').upper()}",
         ])
 
         if job.get("facebook_post_id"):
@@ -1441,8 +1969,10 @@ def build_telegram_app():
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("update", admin_command(update_command)))
     app.add_handler(CommandHandler("approve", admin_command(approve_command)))
+    app.add_handler(CommandHandler("text_approve", admin_command(text_approve_command)))
     app.add_handler(CommandHandler("reject", admin_command(reject_command)))
     app.add_handler(CommandHandler("retry_publish", admin_command(retry_publish_command)))
+    app.add_handler(CommandHandler("post_type", admin_command(post_type_command)))
     app.add_handler(CommandHandler("fbstatus", admin_command(fbstatus_command)))
     app.add_handler(CommandHandler("fb_reconnect", admin_command(fb_reconnect_command)))
     app.add_handler(CommandHandler("fb_set_token", admin_command(fb_set_token_command)))
@@ -1461,6 +1991,21 @@ def build_telegram_app():
     app.add_handler(CommandHandler("scheduler_validate", admin_command(scheduler_validate_command)))
     app.add_handler(CommandHandler("scheduler_reload", admin_command(scheduler_reload_command)))
     app.add_handler(CommandHandler("scheduler_upload", admin_command(scheduler_upload_command)))
+    app.add_handler(CommandHandler("language_manual", admin_command(language_manual_command)))
+    app.add_handler(CommandHandler("language_status", admin_command(language_status_command)))
+    app.add_handler(CommandHandler("language_show", admin_command(language_show_command)))
+    app.add_handler(CommandHandler("language_builder", admin_command(language_builder_command)))
+    app.add_handler(CommandHandler("language_validate", admin_command(language_validate_command)))
+    app.add_handler(CommandHandler("language_reload", admin_command(language_reload_command)))
+    app.add_handler(CommandHandler("language_upload", admin_command(language_upload_command)))
+    app.add_handler(CommandHandler("windy_manual", admin_command(windy_manual_command)))
+    app.add_handler(CommandHandler("windy_status", admin_command(windy_status_command)))
+    app.add_handler(CommandHandler("windy_show", admin_command(windy_show_command)))
+    app.add_handler(CommandHandler("windy_builder", admin_command(windy_builder_command)))
+    app.add_handler(CommandHandler("windy_validate", admin_command(windy_validate_command)))
+    app.add_handler(CommandHandler("windy_reload", admin_command(windy_reload_command)))
+    app.add_handler(CommandHandler("windy_upload", admin_command(windy_upload_command)))
+    app.add_handler(CommandHandler("windy_layer", admin_command(windy_layer_command)))
     app.add_handler(CommandHandler("template_manual", admin_command(template_manual_command)))
     app.add_handler(CommandHandler("template_status", admin_command(template_status_command)))
     app.add_handler(CommandHandler("template_show", admin_command(template_show_command)))

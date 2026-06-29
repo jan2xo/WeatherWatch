@@ -389,6 +389,53 @@ def publish_photo_post(image_path: str, caption: str):
     return response.json()
 
 
+def publish_text_post(message: str):
+    page_id, page_access_token = get_facebook_config()
+    text = str(message or "").strip()
+
+    if not text:
+        raise ValueError("Facebook text post message cannot be empty.")
+
+    response = requests.post(
+        f"{GRAPH_API_BASE_URL}/{page_id}/feed",
+        data={
+            "message": text,
+            "access_token": page_access_token,
+            "published": "true",
+        },
+        timeout=60,
+    )
+
+    if not response.ok:
+        raise RuntimeError(
+            f"Facebook publish failed: {safe_graph_error(response)}"
+        )
+
+    return response.json()
+
+
+def publish_job(job):
+    from services.post_type_config_service import validate_selected_post_type
+
+    post_type = validate_selected_post_type(job.get("post_type", "image"))
+    caption = get_facebook_caption(job)
+
+    if post_type == "text":
+        return publish_text_post(caption)
+    if post_type == "image":
+        image_path = job.get("image") or job.get("final_output_path")
+        if not image_path:
+            raise ValueError(
+                "Facebook image post requires a final output image."
+            )
+        return publish_photo_post(
+            image_path=image_path,
+            caption=caption,
+        )
+
+    raise ValueError(f"Unsupported Facebook post type: {post_type}")
+
+
 def publish_current_job():
     job = get_current_job()
 
@@ -401,10 +448,7 @@ def publish_current_job():
     mark_current_publishing()
 
     try:
-        result = publish_photo_post(
-            image_path=job["image"],
-            caption=get_facebook_caption(job),
-        )
+        result = publish_job(job)
     except Exception as error:
         mark_current_publish_failed(error)
         raise

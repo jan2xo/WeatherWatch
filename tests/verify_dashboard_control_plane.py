@@ -15,6 +15,7 @@ def main():
     secret = "dashboard-test-secret"
 
     original_dashboard_approve = control.approve_current_job
+    original_dashboard_text_approve = control.text_approve_current_job
     original_dashboard_reject = control.reject_current_job
     original_dashboard_modify = control.modify_current_job
     original_dashboard_update = control.generate_update
@@ -37,6 +38,9 @@ def main():
         control.approve_current_job = lambda: calls.append(
             "approve"
         ) or {"facebook_post_id": "post-1"}
+        control.text_approve_current_job = lambda: calls.append(
+            "text_approve"
+        ) or {"facebook_post_id": "text-post-1"}
         control.reject_current_job = lambda: calls.append(
             "reject"
         ) or {"job_id": "job-1"}
@@ -54,6 +58,7 @@ def main():
 
         dashboard.dispatch_dashboard_action("/admin/action/update")
         dashboard.dispatch_dashboard_action("/admin/action/approve")
+        dashboard.dispatch_dashboard_action("/admin/action/text_approve")
         dashboard.dispatch_dashboard_action("/admin/action/reject")
         dashboard.dispatch_dashboard_action("/admin/action/retry_publish")
         dashboard.dispatch_dashboard_action(
@@ -63,6 +68,7 @@ def main():
         assert calls == [
             "update",
             "approve",
+            "text_approve",
             "reject",
             "retry",
             ("modify", "NEW HEADLINE", "New caption"),
@@ -71,6 +77,7 @@ def main():
         page = dashboard.render_admin_page().decode("utf-8")
         health = dashboard.build_health_payload()
         assert "/admin/current-image" in page
+        assert "/admin/action/text_approve" in page
         assert secret not in page
         assert secret not in str(health)
         assert health["admin_secret_configured"] is True
@@ -99,6 +106,7 @@ def main():
             dashboard.get_current_job = original_dashboard_get_job
     finally:
         control.approve_current_job = original_dashboard_approve
+        control.text_approve_current_job = original_dashboard_text_approve
         control.reject_current_job = original_dashboard_reject
         control.modify_current_job = original_dashboard_modify
         control.generate_update = original_dashboard_update
@@ -135,10 +143,14 @@ def main():
             "image_job",
             job,
         )
-        control.update_current_job = lambda updates: {
+        control.update_current_job = lambda updates, **kwargs: {
             **current,
             **updates,
-            "status": "modified",
+            "status": (
+                current["status"]
+                if kwargs.get("preserve_status")
+                else "modified"
+            ),
         }
 
         modified = control.modify_current_job(

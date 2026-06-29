@@ -12,7 +12,7 @@ Rather than being a simple weather bot, WeatherWatch is designed as a production
 
 **Version**
 
-`v0.8.3`
+`v0.8.7`
 
 **Status**
 
@@ -46,6 +46,7 @@ Target milestone:
 * Editable templates
 * Dynamic branding
 * Smart rendering pipeline
+* Config-driven Windy satellite, radar, wind, rain, cloud, and temperature layers
 
 ## Caption System
 
@@ -60,6 +61,8 @@ Target milestone:
 * Telegram approval workflow
 * Human editorial review
 * Facebook publishing
+* Human-selected image or native Facebook text posts
+* Intent-based `/approve` and `/text_approve` workflows
 * Token recovery
 * State persistence
 

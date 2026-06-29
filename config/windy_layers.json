@@ -1,0 +1,71 @@
+{
+  "version": "1.0",
+  "default_layer": "satellite",
+  "rotation_enabled": false,
+  "layers": {
+    "satellite": {
+      "enabled": true,
+      "label": "Satellite",
+      "url_pattern": "https://www.windy.com/-Satellite-satellite?satellite,{lat},{lon},{zoom}",
+      "description": "Best general-purpose weather situation layer."
+    },
+    "radar": {
+      "enabled": true,
+      "label": "Weather Radar",
+      "url_pattern": "https://www.windy.com/-Weather-radar-radar?radar,{lat},{lon},{zoom}",
+      "description": "Recent radar observations where coverage is available."
+    },
+    "wind": {
+      "enabled": true,
+      "label": "Wind",
+      "url_pattern": "https://www.windy.com/?{lat},{lon},{zoom}",
+      "description": "Wind direction and speed visualization."
+    },
+    "rain": {
+      "enabled": true,
+      "label": "Rain and Thunder",
+      "url_pattern": "https://www.windy.com/-Rain-thunder-rain?rain,{lat},{lon},{zoom}",
+      "description": "Rain and thunder forecast visualization."
+    },
+    "temperature": {
+      "enabled": true,
+      "label": "Temperature",
+      "url_pattern": "https://www.windy.com/-Temperature-temp?temp,{lat},{lon},{zoom}",
+      "description": "Surface temperature visualization."
+    },
+    "clouds": {
+      "enabled": true,
+      "label": "Clouds",
+      "url_pattern": "https://www.windy.com/-Clouds-clouds?clouds,{lat},{lon},{zoom}",
+      "description": "Cloud cover visualization."
+    },
+    "waves": {
+      "enabled": false,
+      "label": "Waves",
+      "url_pattern": "https://www.windy.com/-Waves-waves?waves,{lat},{lon},{zoom}",
+      "description": "Reserved marine wave visualization."
+    },
+    "rain_accumulation": {
+      "enabled": true,
+      "label": "Rain Accumulation",
+      "url_pattern": "https://www.windy.com/-Rain-accumulation-rainAccu?rainAccu,{lat},{lon},{zoom}",
+      "description": "Forecast accumulated rainfall visualization."
+    },
+    "thunderstorms": {
+      "enabled": true,
+      "label": "Thunderstorms",
+      "url_pattern": "https://www.windy.com/-Thunderstorms-thunder?thunder,{lat},{lon},{zoom}",
+      "description": "Thunderstorm forecast visualization."
+    }
+  },
+  "suggestion_rules": {
+    "default": "satellite",
+    "monsoon": "satellite",
+    "cyclone": "satellite",
+    "lpa": "satellite",
+    "heavy_rain": "rain",
+    "thunderstorm": "thunderstorms",
+    "wind_advisory": "wind",
+    "temperature": "temperature"
+  }
+}
