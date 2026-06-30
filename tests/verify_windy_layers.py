@@ -17,7 +17,8 @@ from services.capture_service import resolve_capture_url
 def verify_validation():
     config = windy.load_windy_layer_config_file()
     assert windy.validate_windy_layer_config(config)
-    assert windy.get_default_layer() == "satellite"
+    assert windy.default_windy_layer_config()["default_layer"] == "satellite"
+    assert windy.get_default_layer() == config["default_layer"]
 
     invalid = copy.deepcopy(config)
     invalid["layers"]["radar"]["url_pattern"] = (
@@ -87,6 +88,7 @@ def verify_urls_and_suggestions():
     metadata = windy.build_windy_job_metadata(
         framing,
         forecast_data={"affected_weather_system": "Southwest Monsoon"},
+        layer_id="satellite",
     )
     assert metadata["windy_url"].endswith(
         "satellite,15.480,120.600,5"

@@ -12,7 +12,7 @@ Rather than being a simple weather bot, WeatherWatch is designed as a production
 
 **Version**
 
-`v0.8.7`
+`v0.8.9`
 
 **Status**
 
@@ -52,6 +52,7 @@ Target milestone:
 
 * Editable caption templates
 * Structured forecast integration
+* Config-driven PAGASA weather-system wording and aliases
 * Runtime template reload
 * Template validation
 * Upload guardrails

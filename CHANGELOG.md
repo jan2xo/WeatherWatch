@@ -4,6 +4,43 @@ All notable changes to WeatherWatch are documented here.
 
 ---
 
+# v0.8.9 — Generalized Weather System Composer Config
+
+## Added
+
+* Config-driven composer definitions for Habagat, Amihan, ITCZ, LPA, Easterlies, Shear Line, and Frontal System.
+* Weather-system categories, alias collision checks, and template placeholder validation.
+* Safe missing-area wording and generalized GPX/caption headline handoff.
+
+## Changed
+
+* Composer configuration now uses `composer.weather_systems`.
+* Alias-driven weather-system composition replaces monsoon-specific Python logic.
+* Composer Telegram status/manual output lists configured systems and categories.
+
+## Compatibility
+
+* Legacy `composer.monsoon.systems` files are normalized safely with a warning.
+
+---
+
+# v0.8.8 — Telegram Intent Command Standardization
+
+## Added
+
+* Explicit image-fit commands: `/image_fit_stretch`, `/image_fit_smartfit`, and `/image_fit_crop`.
+* Explicit Windy layer commands for every enabled layer.
+* Explicit post-type commands: `/post_type_image` and `/post_type_text`.
+* Telegram intent-command verification covering shared-service dispatch and manuals.
+
+## Changed
+
+* Common runtime selections use command names instead of required arguments.
+* `/image_fit MODE`, `/windy_layer LAYER`, and `/post_type TYPE` remain deprecated aliases with migration guidance.
+* Configuration-management commands remain unchanged.
+
+---
+
 # v0.8.7 — Config-Driven Windy Layer Selector
 
 ## Added

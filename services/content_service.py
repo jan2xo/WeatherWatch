@@ -84,16 +84,21 @@ def build_graphic_headline(job):
             "PATULOY NA BINABANTAYAN"
         )
 
+    composed_headline = composed_content.get("headline")
+    if composed_headline and composed_content.get("content_type") != (
+        "general_weather"
+    ):
+        graphic_headline = composed_headline.upper()
+        for action in (" NAKAAAPEKTO ", " BINABANTAYAN "):
+            if action in graphic_headline:
+                return graphic_headline.replace(
+                    action,
+                    f"\n{action.strip()} ",
+                    1,
+                )
+        return graphic_headline
+
     if forecast.get("habagat"):
-        composed_headline = composed_content.get("headline")
-
-        if composed_headline:
-            return composed_headline.upper().replace(
-                " NAKAAAPEKTO ",
-                "\nNAKAAAPEKTO ",
-                1,
-            )
-
         return "HABAGAT\nNAKAAAPEKTO SA LUZON"
 
     return job.get(

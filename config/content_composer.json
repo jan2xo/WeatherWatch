@@ -3,18 +3,77 @@
   "language": "fil",
   "composer": {
     "default_source_line": "Forecast: PAGASA | pagasa.dost.gov.ph",
-    "monsoon": {
-      "systems": {
-        "Southwest Monsoon": {
-          "display_name": "Habagat",
-          "aliases": [
-            "Southwest Monsoon",
-            "Southwest Monsoon (Habagat)",
-            "Habagat"
-          ],
-          "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
-          "summary_template": "Patuloy na nakaaapekto ang {display_name} o Southwest Monsoon sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
-        }
+    "weather_systems": {
+      "Southwest Monsoon": {
+        "category": "monsoon",
+        "display_name": "Habagat",
+        "aliases": [
+          "Southwest Monsoon",
+          "Southwest Monsoon (Habagat)",
+          "Habagat"
+        ],
+        "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
+        "summary_template": "Patuloy na nakaaapekto ang {display_name} o Southwest Monsoon sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
+      },
+      "Northeast Monsoon": {
+        "category": "monsoon",
+        "display_name": "Amihan",
+        "aliases": [
+          "Northeast Monsoon",
+          "Northeast Monsoon (Amihan)",
+          "Amihan"
+        ],
+        "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
+        "summary_template": "Patuloy na nakaaapekto ang {display_name} o Northeast Monsoon sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
+      },
+      "Intertropical Convergence Zone": {
+        "category": "convergence_zone",
+        "display_name": "ITCZ",
+        "aliases": [
+          "Intertropical Convergence Zone",
+          "ITCZ"
+        ],
+        "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
+        "summary_template": "Patuloy na nakaaapekto ang Intertropical Convergence Zone o {display_name} sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
+      },
+      "Low Pressure Area": {
+        "category": "low_pressure_area",
+        "display_name": "LPA",
+        "aliases": [
+          "Low Pressure Area",
+          "LPA"
+        ],
+        "headline_template": "{display_name} Binabantayan sa {areas_text}",
+        "summary_template": "Patuloy na binabantayan ang Low Pressure Area o {display_name} na nakaaapekto sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
+      },
+      "Easterlies": {
+        "category": "wind_flow",
+        "display_name": "Easterlies",
+        "aliases": [
+          "Easterlies"
+        ],
+        "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
+        "summary_template": "Patuloy na nakaaapekto ang Easterlies sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
+      },
+      "Shear Line": {
+        "category": "boundary",
+        "display_name": "Shear Line",
+        "aliases": [
+          "Shear Line"
+        ],
+        "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
+        "summary_template": "Patuloy na nakaaapekto ang Shear Line sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
+      },
+      "Frontal System": {
+        "category": "boundary",
+        "display_name": "Frontal System",
+        "aliases": [
+          "Frontal System",
+          "Tail-end of a Frontal System",
+          "Tail-End of a Frontal System"
+        ],
+        "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
+        "summary_template": "Patuloy na nakaaapekto ang {display_name} sa {areas_text}, ayon sa pinakahuling weather bulletin ng PAGASA."
       }
     },
     "cyclone": {

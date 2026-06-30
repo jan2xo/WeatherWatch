@@ -128,6 +128,25 @@ MODIFY_HELP_TEXT = (
     "Attach a photo with /modify to replace the image.\n"
     "HEADLINE: affects only the graphic. It does not change the Facebook caption unless CAPTION: is also supplied."
 )
+IMAGE_FIT_INTENTS = {
+    "image_fit_stretch": "stretch",
+    "image_fit_smartfit": "smartfit",
+    "image_fit_crop": "crop",
+}
+WINDY_LAYER_INTENTS = {
+    "windy_layer_satellite": "satellite",
+    "windy_layer_radar": "radar",
+    "windy_layer_wind": "wind",
+    "windy_layer_rain": "rain",
+    "windy_layer_clouds": "clouds",
+    "windy_layer_temperature": "temperature",
+    "windy_layer_rain_accumulation": "rain_accumulation",
+    "windy_layer_thunderstorms": "thunderstorms",
+}
+POST_TYPE_INTENTS = {
+    "post_type_image": "image",
+    "post_type_text": "text",
+}
 
 
 def strip_command(text: str) -> str:
@@ -429,7 +448,9 @@ async def manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/text_approve - Approve the current job as a native Facebook text post.\n"
         "/reject - Reject the current job and move it to history.\n"
         "/retry_publish - Retry Facebook publishing for approved or publish_failed jobs.\n"
-        "/post_type [image|text] - Show or change how the current job publishes.\n"
+        "/post_type - Show the current post type.\n"
+        "/post_type_image - Select image publishing.\n"
+        "/post_type_text - Select native text publishing.\n"
         "/fbstatus - Show Facebook token and publish status without exposing tokens.\n\n"
         "Facebook token management:\n"
         "/fb_reconnect - Get the local Facebook OAuth reconnect URL.\n"
@@ -474,7 +495,10 @@ async def image_manual_command(update: Update, context: ContextTypes.DEFAULT_TYP
         "auto_map:\n"
         "Uses parsed PAGASA conditions to choose configured regions, zoom, and geographic pan offsets for automatic provider maps. pan_x adjusts longitude and pan_y adjusts latitude in degrees.\n\n"
         "Commands:\n"
-        "/image_fit [stretch|smartfit|crop] - View or change manual fit only.\n"
+        "/image_fit - View the current manual fit mode.\n"
+        "/image_fit_stretch - Use direct resize for future manual images.\n"
+        "/image_fit_smartfit - Preserve ratio, cover, and center-crop.\n"
+        "/image_fit_crop - Use a centered native-pixel crop.\n"
         "/image_status - Show manual and auto-map configuration status.\n"
         "/image_show - Show the current JSON.\n"
         "/image_builder - Get starter JSON.\n"
@@ -646,10 +670,23 @@ async def image_fit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if len(context.args) != 1 or mode not in SUPPORTED_FIT_MODES:
         await update.message.reply_text(
-            "Unsupported mode. Use /image_fit stretch, /image_fit smartfit, or /image_fit crop."
+            "Unsupported mode. Use /image_fit_stretch, "
+            "/image_fit_smartfit, or /image_fit_crop."
         )
         return
 
+    await apply_image_fit_intent(
+        update,
+        mode,
+        deprecated_alias=True,
+    )
+
+
+async def apply_image_fit_intent(
+    update: Update,
+    mode,
+    deprecated_alias=False,
+):
     try:
         status = set_fit_mode(mode)
     except (OSError, ValueError):
@@ -658,12 +695,25 @@ async def image_fit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    await update.message.reply_text(
+    message = (
         "Image rendering mode updated.\n\n"
         f"Mode: {status['fit_mode']}\n"
         f"Canvas: {status['target_width']}x{status['target_height']}\n\n"
         "This applies to future manual Telegram image uploads."
     )
+    if deprecated_alias:
+        message += (
+            "\n\nThis syntax is deprecated.\n"
+            f"Use: /image_fit_{mode}"
+        )
+    await update.message.reply_text(message)
+
+
+def image_fit_intent_command(mode):
+    async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await apply_image_fit_intent(update, mode)
+
+    return handler
 
 
 async def scheduler_manual_command(
@@ -1031,16 +1081,16 @@ async def windy_manual_command(
         f"{available_layers}\n\n"
         "Runtime:\n"
         "/windy_layer - Show the persistent default, current job, suggestion, and enabled layers.\n"
-        "/windy_layer LAYER - Save the default for future updates and update eligible current-job metadata. Existing graphics are not recaptured.\n\n"
-        "Examples:\n"
-        "/windy_layer satellite\n"
-        "/windy_layer radar\n"
-        "/windy_layer wind\n"
-        "/windy_layer rain\n"
-        "/windy_layer temperature\n"
-        "/windy_layer clouds\n"
-        "/windy_layer rain_accumulation\n"
-        "/windy_layer thunderstorms\n\n"
+        "Selection commands save the default for future updates and update eligible current-job metadata. Existing graphics are not recaptured.\n\n"
+        "Selection commands:\n"
+        "/windy_layer_satellite\n"
+        "/windy_layer_radar\n"
+        "/windy_layer_wind\n"
+        "/windy_layer_rain\n"
+        "/windy_layer_temperature\n"
+        "/windy_layer_clouds\n"
+        "/windy_layer_rain_accumulation\n"
+        "/windy_layer_thunderstorms\n\n"
         "Configuration:\n"
         "/windy_status - Show validation and enabled-layer status.\n"
         "/windy_show - Show current JSON or a shortened preview.\n"
@@ -1218,13 +1268,28 @@ async def windy_layer_command(
         return
 
     if len(context.args) != 1:
-        await update.message.reply_text("Usage: /windy_layer LAYER")
+        await update.message.reply_text(
+            "Use an explicit command such as /windy_layer_satellite "
+            "or /windy_layer_wind."
+        )
         return
 
+    await apply_windy_layer_intent(
+        update,
+        context.args[0],
+        deprecated_alias=True,
+    )
+
+
+async def apply_windy_layer_intent(
+    update: Update,
+    layer_id,
+    deprecated_alias=False,
+):
     try:
         result = await asyncio.to_thread(
             control_set_windy_layer,
-            context.args[0],
+            layer_id,
         )
     except Exception as error:
         await update.message.reply_text(
@@ -1250,10 +1315,23 @@ async def windy_layer_command(
             "",
             "The current job was not changed because it is not an editable Windy job.",
         ])
+    if deprecated_alias:
+        lines.extend([
+            "",
+            "This syntax is deprecated.",
+            f"Use: /windy_layer_{result['windy_layer']}",
+        ])
 
     await update.message.reply_text(
         "\n".join(lines),
     )
+
+
+def windy_layer_intent_command(layer_id):
+    async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await apply_windy_layer_intent(update, layer_id)
+
+    return handler
 
 
 async def template_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1397,6 +1475,9 @@ async def composer_manual_command(
     await update.message.reply_text(
         "Content Composer Manual\n\n"
         "Composer configuration controls editorial weather wording and detection aliases. It is separate from PAGASA caption templates.\n\n"
+        "composer.weather_systems defines recurring PAGASA systems. Each system has a category, display name, aliases, headline template, and summary template.\n"
+        "Configured defaults include Habagat, Amihan, ITCZ, LPA, Easterlies, Shear Line, and Frontal System.\n"
+        "Cyclone wording and the general fallback remain separate composer sections.\n\n"
         "Commands:\n"
         "/composer_status - Show configuration version, language, load time, and validation status.\n"
         "/composer_show - Show the active composer JSON or a shortened preview.\n"
@@ -1410,6 +1491,10 @@ async def composer_manual_command(
 
 
 def format_composer_status(status):
+    systems = ", ".join(
+        f"{system.get('display_name')} ({system.get('category')})"
+        for system in status.get("weather_systems", [])
+    ) or "None"
     lines = [
         "Content Composer Status",
         f"Config: {status.get('config_path')}",
@@ -1417,6 +1502,8 @@ def format_composer_status(status):
         f"Language: {status.get('language') or 'Unknown'}",
         f"Last loaded: {status.get('last_loaded') or 'Never'}",
         f"Validation: {status.get('validation_status')}",
+        f"Weather systems: {status.get('weather_system_count', 0)}",
+        f"Configured: {systems}",
     ]
 
     if status.get("last_validation_error"):
@@ -1745,14 +1832,26 @@ async def post_type_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if len(context.args) != 1:
         await update.message.reply_text(
-            "Usage: /post_type image or /post_type text"
+            "Use /post_type_image or /post_type_text."
         )
         return
 
+    await apply_post_type_intent(
+        update,
+        context.args[0],
+        deprecated_alias=True,
+    )
+
+
+async def apply_post_type_intent(
+    update: Update,
+    post_type,
+    deprecated_alias=False,
+):
     try:
         result = await asyncio.to_thread(
             control_set_post_type,
-            context.args[0],
+            post_type,
         )
     except Exception as error:
         await update.message.reply_text(
@@ -1767,11 +1866,24 @@ async def post_type_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if result["post_type"] == "text"
         else ""
     )
+    deprecated_notice = (
+        "\n\nThis syntax is deprecated.\n"
+        f"Use: /post_type_{result['post_type']}"
+        if deprecated_alias
+        else ""
+    )
     await send_job_preview(
         update,
         updated_job,
-        f"Post Type: {selected}{notice}",
+        f"Post Type: {selected}{notice}{deprecated_notice}",
     )
+
+
+def post_type_intent_command(post_type):
+    async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await apply_post_type_intent(update, post_type)
+
+    return handler
 
 
 async def fbstatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1997,11 +2109,21 @@ def build_telegram_app():
     app.add_handler(CommandHandler("reject", admin_command(reject_command)))
     app.add_handler(CommandHandler("retry_publish", admin_command(retry_publish_command)))
     app.add_handler(CommandHandler("post_type", admin_command(post_type_command)))
+    for command, post_type in POST_TYPE_INTENTS.items():
+        app.add_handler(CommandHandler(
+            command,
+            admin_command(post_type_intent_command(post_type)),
+        ))
     app.add_handler(CommandHandler("fbstatus", admin_command(fbstatus_command)))
     app.add_handler(CommandHandler("fb_reconnect", admin_command(fb_reconnect_command)))
     app.add_handler(CommandHandler("fb_set_token", admin_command(fb_set_token_command)))
     app.add_handler(CommandHandler("image_manual", admin_command(image_manual_command)))
     app.add_handler(CommandHandler("image_fit", admin_command(image_fit_command)))
+    for command, mode in IMAGE_FIT_INTENTS.items():
+        app.add_handler(CommandHandler(
+            command,
+            admin_command(image_fit_intent_command(mode)),
+        ))
     app.add_handler(CommandHandler("image_status", admin_command(image_status_command)))
     app.add_handler(CommandHandler("image_show", admin_command(image_show_command)))
     app.add_handler(CommandHandler("image_builder", admin_command(image_builder_command)))
@@ -2030,6 +2152,11 @@ def build_telegram_app():
     app.add_handler(CommandHandler("windy_reload", admin_command(windy_reload_command)))
     app.add_handler(CommandHandler("windy_upload", admin_command(windy_upload_command)))
     app.add_handler(CommandHandler("windy_layer", admin_command(windy_layer_command)))
+    for command, layer_id in WINDY_LAYER_INTENTS.items():
+        app.add_handler(CommandHandler(
+            command,
+            admin_command(windy_layer_intent_command(layer_id)),
+        ))
     app.add_handler(CommandHandler("template_manual", admin_command(template_manual_command)))
     app.add_handler(CommandHandler("template_status", admin_command(template_status_command)))
     app.add_handler(CommandHandler("template_show", admin_command(template_show_command)))

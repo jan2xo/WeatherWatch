@@ -1,6 +1,6 @@
 # WeatherWatch Features and Extension Guide
 
-Version: 0.8.7
+Version: 0.8.9
 Repository audit date: 2026-06-28
 
 This document is the code-facing reference for WeatherWatch. It explains the
@@ -442,6 +442,15 @@ Region entries provide geographic centers and reusable region defaults.
 
 Use `/image_reload` after editing the file directly.
 
+Runtime image-fit selection uses explicit intent commands:
+
+- `/image_fit_stretch`
+- `/image_fit_smartfit`
+- `/image_fit_crop`
+
+`/image_fit` without arguments remains the status command.
+`/image_fit MODE` remains temporarily available as a deprecated alias.
+
 ### Config-Driven Windy Layer Selector
 
 `config/windy_layers.json` controls Windy layer IDs, labels, enabled state,
@@ -476,9 +485,22 @@ Allowlisted Telegram configuration commands are `/windy_manual`,
 `/windy_status`, `/windy_show`, `/windy_builder`, `/windy_validate`,
 `/windy_reload`, and `/windy_upload`. `/windy_layer` displays the persistent
 default, current-job selection, suggestion, and enabled layers.
-`/windy_layer LAYER` calls shared `control_plane_service.set_windy_layer()`,
-saves that layer as the default in `config/windy_layers.json`, and therefore
-applies it to succeeding manual and scheduled updates across restarts.
+
+Explicit Windy selection commands call shared
+`control_plane_service.set_windy_layer()`:
+
+- `/windy_layer_satellite`
+- `/windy_layer_radar`
+- `/windy_layer_wind`
+- `/windy_layer_rain`
+- `/windy_layer_clouds`
+- `/windy_layer_temperature`
+- `/windy_layer_rain_accumulation`
+- `/windy_layer_thunderstorms`
+
+The selected layer is saved as the default in `config/windy_layers.json` and
+therefore applies to succeeding manual and scheduled updates across restarts.
+`/windy_layer LAYER` remains temporarily available as a deprecated alias.
 
 The dashboard displays current/suggested layer metadata and provides
 `POST /admin/action/windy_layer` using the existing dashboard authentication.
@@ -607,18 +629,36 @@ uploads/backups, status, preview, validation, and starter JSON.
 
 Turns parsed facts into a public-information story:
 
-- monsoon update;
+- configured recurring weather-system update;
 - cyclone update;
 - general fallback.
 
-It uses configured aliases and wording, preserves structured cyclone facts,
-and never intentionally invents measurements.
+It matches structured or raw PAGASA system names against configured aliases,
+uses normalized headline/body area forms, preserves structured cyclone facts,
+and never intentionally invents measurements. Cyclone composition has
+priority, followed by configured weather systems, then the general fallback.
+
+Configured systems in v0.8.9:
+
+- Southwest Monsoon / Habagat;
+- Northeast Monsoon / Amihan;
+- Intertropical Convergence Zone / ITCZ;
+- Low Pressure Area / LPA;
+- Easterlies;
+- Shear Line;
+- Frontal System, including tail-end aliases.
+
+Missing affected areas produce safe system wording without rendering an empty
+`sa` phrase.
 
 ### `services/content_composer_config_service.py`
 
 Manages `config/content_composer.json`:
 
 - schema and placeholder validation;
+- generalized `composer.weather_systems`;
+- required category, display name, aliases, headline, and summary per system;
+- case-insensitive duplicate-alias detection across systems;
 - last-known-good cache;
 - safe defaults;
 - atomic replacement;
@@ -634,6 +674,27 @@ Allowed composer placeholders:
 - `subject`
 - `parsed_forecast_text`
 
+Legacy files containing only `composer.monsoon.systems` remain accepted. The
+service copies them into the normalized in-memory `weather_systems` shape,
+adds the legacy `monsoon` category when absent, and logs a safe migration
+warning. Uploading or reloading a legacy file does not crash the composer.
+
+To add a future PAGASA system, add one unique object under
+`composer.weather_systems` with:
+
+```json
+{
+  "category": "category_id",
+  "display_name": "Public Name",
+  "aliases": ["PAGASA Name", "Short Alias"],
+  "headline_template": "{display_name} Nakaaapekto sa {areas_text}",
+  "summary_template": "Patuloy na nakaaapekto ang {display_name} sa {areas_text}."
+}
+```
+
+No Python composer change is required when the existing placeholders and
+matching model are sufficient.
+
 ### `services/content_service.py`
 
 Builds:
@@ -647,7 +708,7 @@ Behavior includes:
 
 - multi-storm headline;
 - single-storm category and PAGASA hashtag;
-- composed monsoon headline including all parsed areas;
+- composed weather-system headline including all parsed areas;
 - cyclone structured details;
 - composer story preference with deterministic fallback;
 - PAGASA forecast and provider map attribution.
@@ -803,9 +864,11 @@ and the Facebook Page feed endpoint for `text`. Text posts use only the final
 Facebook caption and ignore the retained image path. Retry uses the stored
 `post_type`.
 
-Authorized Telegram admins use `/post_type` to inspect the current selection
-and `/post_type image` or `/post_type text` to change it. Changes are limited
-to pending, modified, or publish-failed jobs. The dashboard uses the same
+Authorized Telegram admins use `/post_type` to inspect the current selection,
+`/post_type_image` to select image publishing, and `/post_type_text` to select
+native text publishing. Changes are limited to pending, modified, or
+publish-failed jobs. `/post_type TYPE` remains temporarily available as a
+deprecated alias. The dashboard uses the same
 `services.control_plane_service.set_post_type()` function through
 `POST /admin/action/post_type`.
 
@@ -913,6 +976,36 @@ Use an SSH tunnel on VPS. Binding to `0.0.0.0` requires
 
 ## 16. Configuration and Environment
 
+### Runtime Telegram Intent Commands
+
+Common operator choices are encoded directly in command names:
+
+```text
+/<subsystem>_<setting>_<choice>
+```
+
+Runtime commands express an immediate operational choice and call existing
+shared services. They do not duplicate image-fit, Windy-layer, or post-type
+business logic.
+
+Current intent families:
+
+- Image fit: `/image_fit_stretch`, `/image_fit_smartfit`, `/image_fit_crop`
+- Windy: `/windy_layer_satellite`, `/windy_layer_radar`,
+  `/windy_layer_wind`, `/windy_layer_rain`, `/windy_layer_clouds`,
+  `/windy_layer_temperature`, `/windy_layer_rain_accumulation`,
+  `/windy_layer_thunderstorms`
+- Facebook type: `/post_type_image`, `/post_type_text`
+
+The old `/image_fit MODE`, `/windy_layer LAYER`, and `/post_type TYPE`
+syntaxes remain deprecated aliases and reply with the corresponding explicit
+command.
+
+Configuration-management commands such as `/windy_upload`, `/windy_reload`,
+`/template_upload`, and `/composer_upload` keep their existing names and
+behavior. Secret payload commands such as `/fb_set_token TOKEN` are not
+runtime selectors and remain argument-based.
+
 ### `config/settings.py`
 
 Loads `.env`, validates required runtime values, and parses Telegram allowlist
@@ -997,8 +1090,8 @@ backups, rollback, and security guidance.
 | File | Coverage |
 | --- | --- |
 | `tests/verify_forecast_parser.py` | Cyclone names, class, winds, gustiness, movement |
-| `tests/verify_content_composer.py` | Monsoon, cyclone, fallback composition |
-| `tests/verify_content_composer_config.py` | Composer schema, aliases, wording, last-known-good |
+| `tests/verify_content_composer.py` | Seven configured weather systems, cyclone, fallback, normalized areas, missing-area safety |
+| `tests/verify_content_composer_config.py` | Generalized schema, legacy normalization, aliases, placeholders, wording, last-known-good |
 | `tests/verify_template_guardrails.py` | Template schema, placeholders, retention, malformed parser input |
 | `tests/verify_image_rendering.py` | Fit modes, aspect ratios, center preservation, invalid config |
 | `tests/verify_map_framing.py` | Situations, coordinates, zoom, pan, fallback, legacy config, provider URL framing |
@@ -1008,6 +1101,7 @@ backups, rollback, and security guidance.
 | `tests/verify_text_post_publisher.py` | Post-type config, guards, Facebook dispatch, retry, dashboard, and secret safety |
 | `tests/verify_windy_layers.py` | Windy layer validation, URLs, framing, suggestions, metadata, and dashboard security |
 | `tests/verify_approval_state_safety.py` | Atomic state writes, malformed reads, failed replacement, and concurrent updates |
+| `tests/verify_telegram_intent_commands.py` | Explicit command maps, shared-service dispatch, aliases, and manual coverage |
 | `test_forecast.py` | Manual live PAGASA fetch smoke script |
 
 Run the local verification set:
@@ -1025,6 +1119,7 @@ Run the local verification set:
 .venv/bin/python tests/verify_text_post_publisher.py
 .venv/bin/python tests/verify_windy_layers.py
 .venv/bin/python tests/verify_approval_state_safety.py
+.venv/bin/python tests/verify_telegram_intent_commands.py
 .venv/bin/python -m compileall core services pipelines storage config tests
 ```
 

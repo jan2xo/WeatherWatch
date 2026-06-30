@@ -1,5 +1,6 @@
 import copy
 import json
+import logging
 import string
 from datetime import datetime
 from pathlib import Path
@@ -16,31 +17,118 @@ ALLOWED_PLACEHOLDERS = {
     "subject",
     "parsed_forecast_text",
 }
+LOGGER = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
     "version": "1.0",
     "language": "fil",
     "composer": {
         "default_source_line": "Forecast: PAGASA | pagasa.dost.gov.ph",
-        "monsoon": {
-            "systems": {
-                "Southwest Monsoon": {
-                    "display_name": "Habagat",
-                    "aliases": [
-                        "Southwest Monsoon",
-                        "Southwest Monsoon (Habagat)",
-                        "Habagat",
-                    ],
-                    "headline_template": (
-                        "{display_name} Nakaaapekto sa {areas_text}"
-                    ),
-                    "summary_template": (
-                        "Patuloy na nakaaapekto ang {display_name} o "
-                        "Southwest Monsoon sa {areas_text}, ayon sa pinakahuling "
-                        "weather bulletin ng PAGASA."
-                    ),
-                }
-            }
+        "weather_systems": {
+            "Southwest Monsoon": {
+                "category": "monsoon",
+                "display_name": "Habagat",
+                "aliases": [
+                    "Southwest Monsoon",
+                    "Southwest Monsoon (Habagat)",
+                    "Habagat",
+                ],
+                "headline_template": (
+                    "{display_name} Nakaaapekto sa {areas_text}"
+                ),
+                "summary_template": (
+                    "Patuloy na nakaaapekto ang {display_name} o "
+                    "Southwest Monsoon sa {areas_text}, ayon sa pinakahuling "
+                    "weather bulletin ng PAGASA."
+                ),
+            },
+            "Northeast Monsoon": {
+                "category": "monsoon",
+                "display_name": "Amihan",
+                "aliases": [
+                    "Northeast Monsoon",
+                    "Northeast Monsoon (Amihan)",
+                    "Amihan",
+                ],
+                "headline_template": (
+                    "{display_name} Nakaaapekto sa {areas_text}"
+                ),
+                "summary_template": (
+                    "Patuloy na nakaaapekto ang {display_name} o "
+                    "Northeast Monsoon sa {areas_text}, ayon sa pinakahuling "
+                    "weather bulletin ng PAGASA."
+                ),
+            },
+            "Intertropical Convergence Zone": {
+                "category": "convergence_zone",
+                "display_name": "ITCZ",
+                "aliases": [
+                    "Intertropical Convergence Zone",
+                    "ITCZ",
+                ],
+                "headline_template": (
+                    "{display_name} Nakaaapekto sa {areas_text}"
+                ),
+                "summary_template": (
+                    "Patuloy na nakaaapekto ang Intertropical Convergence "
+                    "Zone o {display_name} sa {areas_text}, ayon sa "
+                    "pinakahuling weather bulletin ng PAGASA."
+                ),
+            },
+            "Low Pressure Area": {
+                "category": "low_pressure_area",
+                "display_name": "LPA",
+                "aliases": ["Low Pressure Area", "LPA"],
+                "headline_template": (
+                    "{display_name} Binabantayan sa {areas_text}"
+                ),
+                "summary_template": (
+                    "Patuloy na binabantayan ang Low Pressure Area o "
+                    "{display_name} na nakaaapekto sa {areas_text}, ayon sa "
+                    "pinakahuling weather bulletin ng PAGASA."
+                ),
+            },
+            "Easterlies": {
+                "category": "wind_flow",
+                "display_name": "Easterlies",
+                "aliases": ["Easterlies"],
+                "headline_template": (
+                    "{display_name} Nakaaapekto sa {areas_text}"
+                ),
+                "summary_template": (
+                    "Patuloy na nakaaapekto ang Easterlies sa {areas_text}, "
+                    "ayon sa pinakahuling weather bulletin ng PAGASA."
+                ),
+            },
+            "Shear Line": {
+                "category": "boundary",
+                "display_name": "Shear Line",
+                "aliases": ["Shear Line"],
+                "headline_template": (
+                    "{display_name} Nakaaapekto sa {areas_text}"
+                ),
+                "summary_template": (
+                    "Patuloy na nakaaapekto ang Shear Line sa {areas_text}, "
+                    "ayon sa pinakahuling weather bulletin ng PAGASA."
+                ),
+            },
+            "Frontal System": {
+                "category": "boundary",
+                "display_name": "Frontal System",
+                "aliases": [
+                    "Frontal System",
+                    "Tail-end of a Frontal System",
+                    "Tail-End of a Frontal System",
+                ],
+                "headline_template": (
+                    "{display_name} Nakaaapekto sa {areas_text}"
+                ),
+                "summary_template": (
+                    "Patuloy na nakaaapekto ang {display_name} sa "
+                    "{areas_text}, ayon sa pinakahuling weather bulletin "
+                    "ng PAGASA."
+                ),
+            },
         },
         "cyclone": {
             "headline_template": "{subject} Patuloy na Binabantayan",
@@ -93,6 +181,41 @@ def validate_template(value, path):
         )
 
 
+def normalize_alias(value):
+    return " ".join(str(value or "").strip().casefold().split())
+
+
+def normalize_composer_config(config, warn_legacy=False):
+    normalized = copy.deepcopy(config)
+    composer = (
+        normalized.get("composer")
+        if isinstance(normalized, dict)
+        else None
+    )
+    if not isinstance(composer, dict):
+        return normalized
+    if "weather_systems" in composer:
+        return normalized
+
+    legacy_systems = (
+        composer.get("monsoon", {}).get("systems")
+        if isinstance(composer.get("monsoon"), dict)
+        else None
+    )
+    if isinstance(legacy_systems, dict) and legacy_systems:
+        composer["weather_systems"] = copy.deepcopy(legacy_systems)
+        for system in composer["weather_systems"].values():
+            if isinstance(system, dict):
+                system.setdefault("category", "monsoon")
+        if warn_legacy:
+            LOGGER.warning(
+                "Legacy composer.monsoon.systems config detected; "
+                "using normalized composer.weather_systems."
+            )
+
+    return normalized
+
+
 def validate_composer_config(config):
     if not isinstance(config, dict):
         raise ValueError("Composer config must be a JSON object")
@@ -104,11 +227,17 @@ def validate_composer_config(config):
     validate_string(config["version"], "version")
     validate_string(config["language"], "language")
 
-    composer = config["composer"]
+    normalized = normalize_composer_config(config)
+    composer = normalized["composer"]
     if not isinstance(composer, dict):
         raise ValueError("composer must be an object")
 
-    for key in ("default_source_line", "monsoon", "cyclone", "fallback"):
+    for key in (
+        "default_source_line",
+        "weather_systems",
+        "cyclone",
+        "fallback",
+    ):
         if key not in composer:
             raise ValueError(f"Missing required composer key: {key}")
 
@@ -117,22 +246,22 @@ def validate_composer_config(config):
         "composer.default_source_line",
     )
 
-    monsoon = composer["monsoon"]
-    if not isinstance(monsoon, dict) or not isinstance(
-        monsoon.get("systems"), dict
-    ):
-        raise ValueError("composer.monsoon.systems must be an object")
-    if not monsoon["systems"]:
-        raise ValueError("composer.monsoon.systems must not be empty")
+    systems = composer["weather_systems"]
+    if not isinstance(systems, dict):
+        raise ValueError("composer.weather_systems must be an object")
+    if not systems:
+        raise ValueError("composer.weather_systems must not be empty")
 
-    for system_name, system in monsoon["systems"].items():
-        path = f"composer.monsoon.systems.{system_name}"
-        validate_string(system_name, "monsoon system name")
+    aliases_seen = {}
+    for system_name, system in systems.items():
+        path = f"composer.weather_systems.{system_name}"
+        validate_string(system_name, "weather system name")
 
         if not isinstance(system, dict):
             raise ValueError(f"{path} must be an object")
 
         for key in (
+            "category",
             "display_name",
             "aliases",
             "headline_template",
@@ -141,12 +270,21 @@ def validate_composer_config(config):
             if key not in system:
                 raise ValueError(f"Missing required key: {path}.{key}")
 
+        validate_string(system["category"], f"{path}.category")
         validate_string(system["display_name"], f"{path}.display_name")
         aliases = system["aliases"]
         if not isinstance(aliases, list) or not aliases:
             raise ValueError(f"{path}.aliases must be a non-empty array")
         for index, alias in enumerate(aliases):
             validate_string(alias, f"{path}.aliases[{index}]")
+            normalized_alias = normalize_alias(alias)
+            owner = aliases_seen.get(normalized_alias)
+            if owner and owner != system_name:
+                raise ValueError(
+                    f"Duplicate weather-system alias {alias!r}: "
+                    f"{owner} and {system_name}"
+                )
+            aliases_seen[normalized_alias] = system_name
         validate_template(
             system["headline_template"],
             f"{path}.headline_template",
@@ -200,7 +338,7 @@ def load_composer_config_file(path=None):
     validate_composer_upload_size(config_path)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     validate_composer_config(config)
-    return config
+    return normalize_composer_config(config, warn_legacy=True)
 
 
 def reload_composer_config():
@@ -309,6 +447,21 @@ def get_composer_status():
         "last_validation_error": (
             validation_error or _last_validation_error
         ),
+        "weather_system_count": len(
+            config.get("composer", {}).get("weather_systems", {})
+        ),
+        "weather_systems": [
+            {
+                "name": name,
+                "category": settings.get("category"),
+                "display_name": settings.get("display_name"),
+            }
+            for name, settings in (
+                config.get("composer", {})
+                .get("weather_systems", {})
+                .items()
+            )
+        ],
     }
 
 

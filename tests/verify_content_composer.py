@@ -68,10 +68,95 @@ def verify_fallback_update():
     assert content["headline"]
 
 
+def verify_configured_weather_systems():
+    cases = [
+        (
+            "Northeast Monsoon",
+            "Northeast Monsoon affecting Northern Luzon.",
+            "Amihan",
+            "monsoon_update",
+        ),
+        (
+            "Intertropical Convergence Zone",
+            "Intertropical Convergence Zone affecting Mindanao.",
+            "ITCZ",
+            "convergence_zone_update",
+        ),
+        (
+            "Low Pressure Area",
+            "Low Pressure Area affecting Eastern Visayas.",
+            "LPA",
+            "low_pressure_area_update",
+        ),
+        (
+            "Easterlies",
+            "Easterlies affecting the eastern section of Luzon.",
+            "Easterlies",
+            "wind_flow_update",
+        ),
+        (
+            "Shear Line",
+            "Shear Line affecting Northern Luzon.",
+            "Shear Line",
+            "boundary_update",
+        ),
+        (
+            "Frontal System",
+            "Tail-end of a Frontal System affecting Northern Luzon.",
+            "Frontal System",
+            "boundary_update",
+        ),
+    ]
+
+    for system_name, text, expected_name, content_type in cases:
+        forecast = parse_forecast_text(text)
+        content = forecast["composed_content"]
+        assert content["content_type"] == content_type
+        assert expected_name in content["headline"]
+        assert expected_name in (
+            content["summary"] + " " + content["headline"]
+        )
+        assert forecast["structured"]["affected_weather_system"]
+
+        job = {
+            "forecast": forecast,
+            "provider": "windy",
+            "provider_display": "WINDY",
+            "provider_url": "windy.com",
+        }
+        job["headline"] = build_graphic_headline(job)
+        caption = build_facebook_caption(job)
+        assert expected_name.upper() in job["headline"]
+        assert content["summary"] in caption
+
+
+def verify_missing_areas_and_unknown_system():
+    missing_areas = compose_weather_content(
+        "Northeast Monsoon remains active.",
+        {"affected_weather_system": "Northeast Monsoon"},
+    )
+    assert missing_areas["headline"] == "Amihan"
+    assert missing_areas["summary"]
+    assert not missing_areas["headline"].endswith("sa")
+    assert "sa ." not in missing_areas["summary"].casefold()
+
+    unknown = compose_weather_content(
+        "Unknown circulation affecting Luzon.",
+        {
+            "affected_weather_system": "Unknown Circulation",
+            "affected_areas": ["Luzon"],
+        },
+    )
+    assert unknown["content_type"] == "general_weather"
+    assert unknown["headline"] == "Weather Update"
+
+
 def main():
     verify_monsoon_update()
     verify_cyclone_update()
     verify_fallback_update()
+    verify_configured_weather_systems()
+    verify_missing_areas_and_unknown_system()
     print("content composer verification ok")
 
 

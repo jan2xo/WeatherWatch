@@ -10,7 +10,7 @@ import services.content_composer_config_service as config_service
 from services.content_composer_service import compose_weather_content
 
 
-def monsoon_data(system):
+def weather_system_data(system):
     return {
         "affected_weather_system": system,
         "affected_areas": ["Luzon", "Visayas"],
@@ -20,6 +20,10 @@ def monsoon_data(system):
 def verify_valid_and_missing_keys():
     valid = config_service.default_composer_config()
     assert config_service.validate_composer_config(valid)
+    assert len(valid["composer"]["weather_systems"]) == 7
+    assert "weather_systems" in json.loads(
+        config_service.starter_composer_json()
+    )["composer"]
 
     invalid = copy.deepcopy(valid)
     del invalid["composer"]["cyclone"]
@@ -35,11 +39,11 @@ def verify_valid_and_missing_keys():
 def verify_aliases():
     habagat = compose_weather_content(
         "Habagat affecting Luzon and Visayas.",
-        monsoon_data("Habagat"),
+        weather_system_data("Habagat"),
     )
     combined_name = compose_weather_content(
         "Southwest Monsoon (Habagat) affecting Luzon and Visayas.",
-        monsoon_data("Southwest Monsoon (Habagat)"),
+        weather_system_data("Southwest Monsoon (Habagat)"),
     )
 
     assert habagat["content_type"] == "monsoon_update"
@@ -49,7 +53,7 @@ def verify_aliases():
 def verify_configured_wording():
     config = config_service.default_composer_config()
     config["composer"]["default_source_line"] = "Forecast: TEST"
-    system = config["composer"]["monsoon"]["systems"]["Southwest Monsoon"]
+    system = config["composer"]["weather_systems"]["Southwest Monsoon"]
     system["headline_template"] = "{display_name}: Apektado ang {areas_text}"
     system["summary_template"] = (
         "Umiiral ang {display_name} sa {areas_text}."
@@ -57,7 +61,7 @@ def verify_configured_wording():
 
     content = compose_weather_content(
         "Southwest Monsoon affecting Luzon and Visayas.",
-        monsoon_data("Southwest Monsoon"),
+        weather_system_data("Southwest Monsoon"),
         composer_config=config,
     )
 
@@ -97,7 +101,7 @@ def verify_last_known_good():
 
             content = compose_weather_content(
                 "Habagat affecting Luzon and Visayas.",
-                monsoon_data("Habagat"),
+                weather_system_data("Habagat"),
             )
             assert content["content_type"] == "monsoon_update"
     finally:
@@ -107,11 +111,64 @@ def verify_last_known_good():
         config_service._last_validation_error = original_error
 
 
+def verify_legacy_schema():
+    config = config_service.default_composer_config()
+    southwest = copy.deepcopy(
+        config["composer"]["weather_systems"]["Southwest Monsoon"]
+    )
+    southwest.pop("category")
+    del config["composer"]["weather_systems"]
+    config["composer"]["monsoon"] = {
+        "systems": {"Southwest Monsoon": southwest}
+    }
+
+    assert config_service.validate_composer_config(config)
+    normalized = config_service.normalize_composer_config(config)
+    system = normalized["composer"]["weather_systems"][
+        "Southwest Monsoon"
+    ]
+    assert system["category"] == "monsoon"
+
+    content = compose_weather_content(
+        "Southwest Monsoon affecting Luzon.",
+        weather_system_data("Southwest Monsoon"),
+        composer_config=config,
+    )
+    assert content["content_type"] == "monsoon_update"
+    assert content["primary_subject"] == "Habagat"
+
+
+def verify_validation_guardrails():
+    duplicate = config_service.default_composer_config()
+    duplicate["composer"]["weather_systems"]["Northeast Monsoon"][
+        "aliases"
+    ].append("Habagat")
+    try:
+        config_service.validate_composer_config(duplicate)
+    except ValueError as error:
+        assert "Duplicate weather-system alias" in str(error)
+    else:
+        raise AssertionError("Duplicate aliases across systems must fail")
+
+    unknown_placeholder = config_service.default_composer_config()
+    unknown_placeholder["composer"]["weather_systems"][
+        "Easterlies"
+    ]["headline_template"] = "{unknown_value}"
+    try:
+        config_service.validate_composer_config(unknown_placeholder)
+    except ValueError as error:
+        assert "unknown placeholders" in str(error)
+    else:
+        raise AssertionError("Unknown placeholders must fail")
+
+
 def main():
     verify_valid_and_missing_keys()
     verify_aliases()
     verify_configured_wording()
     verify_last_known_good()
+    verify_legacy_schema()
+    verify_validation_guardrails()
     print("content composer config verification ok")
 
 

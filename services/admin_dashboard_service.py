@@ -23,7 +23,7 @@ from storage.approval_store import get_current_job
 from storage.facebook_token_store import STATE_FILE as FACEBOOK_TOKEN_STATE_FILE
 
 
-APP_VERSION = "0.8.7"
+APP_VERSION = "0.8.9"
 STARTED_AT = datetime.now()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_ROOT = (PROJECT_ROOT / "output").resolve()

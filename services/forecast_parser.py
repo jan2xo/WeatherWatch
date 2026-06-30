@@ -34,7 +34,9 @@ MOVEMENT_PATTERN = re.compile(
 )
 
 WEATHER_SYSTEM_PATTERN = re.compile(
-    r"(Southwest Monsoon|Northeast Monsoon|Shear Line|Intertropical Convergence Zone|Localized Thunderstorms)\s+"
+    r"(Southwest Monsoon|Northeast Monsoon|Shear Line|"
+    r"Intertropical Convergence Zone|Low Pressure Area|LPA|Easterlies|"
+    r"Tail-end of a Frontal System|Frontal System|Localized Thunderstorms)\s+"
     r"affecting\s+(.+?)(?:\.|$)",
     re.IGNORECASE | re.DOTALL,
 )

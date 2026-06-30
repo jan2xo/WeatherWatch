@@ -1,7 +1,10 @@
 import logging
 import string
 
-from services.content_composer_config_service import get_composer_config
+from services.content_composer_config_service import (
+    get_composer_config,
+    normalize_composer_config,
+)
 from services.forecast_parser import (
     build_affected_weather_caption_detail,
     build_structured_forecast_caption_detail,
@@ -33,8 +36,8 @@ def normalize_match_value(value):
     return " ".join(str(value or "").strip().casefold().split())
 
 
-def find_monsoon_system(parsed_forecast_text, forecast_data, config):
-    systems = config["composer"]["monsoon"]["systems"]
+def find_weather_system(parsed_forecast_text, forecast_data, config):
+    systems = config["composer"]["weather_systems"]
     detected_system = normalize_match_value(
         forecast_data.get("affected_weather_system")
     )
@@ -50,12 +53,12 @@ def find_monsoon_system(parsed_forecast_text, forecast_data, config):
         }
 
         if detected_system and detected_system in aliases:
-            return settings
+            return system_name, settings
 
         if any(alias and alias in raw_text for alias in aliases):
-            return settings
+            return system_name, settings
 
-    return None
+    return None, None
 
 
 def safe_render(template, values, fallback, label):
@@ -90,10 +93,11 @@ def safe_render(template, values, fallback, label):
         return fallback
 
 
-def compose_monsoon_update(
+def compose_weather_system_update(
     parsed_forecast_text,
     forecast_data,
     config,
+    system_name,
     system_config,
 ):
     composer = config["composer"]
@@ -104,6 +108,7 @@ def compose_monsoon_update(
         or forecast_data.get("affected_areas")
     )
     display_name = system_config["display_name"]
+    category = system_config["category"]
     common_values = {
         "display_name": display_name,
         "subject": display_name,
@@ -111,27 +116,39 @@ def compose_monsoon_update(
             (parsed_forecast_text or "").split()
         ),
     }
-    headline = safe_render(
-        system_config["headline_template"],
-        {
-            **common_values,
-            "areas_text": headline_areas_text,
-        },
-        fallback["headline"],
-        "monsoon.headline_template",
-    )
-    summary = safe_render(
-        system_config["summary_template"],
-        {
-            **common_values,
-            "areas_text": body_areas_text,
-        },
-        fallback["summary"],
-        "monsoon.summary_template",
-    )
+    if headline_areas_text:
+        headline = safe_render(
+            system_config["headline_template"],
+            {
+                **common_values,
+                "areas_text": headline_areas_text,
+            },
+            display_name,
+            f"weather_systems.{system_name}.headline_template",
+        )
+    else:
+        headline = display_name
+
+    if body_areas_text:
+        summary = safe_render(
+            system_config["summary_template"],
+            {
+                **common_values,
+                "areas_text": body_areas_text,
+            },
+            fallback["summary"],
+            f"weather_systems.{system_name}.summary_template",
+        )
+    elif category == "low_pressure_area":
+        summary = (
+            f"Patuloy na binabantayan ng PAGASA ang {system_name} "
+            f"o {display_name}."
+        )
+    else:
+        summary = f"Patuloy na mino-monitor ng PAGASA ang {display_name}."
 
     return {
-        "content_type": "monsoon_update",
+        "content_type": f"{category}_update",
         "primary_subject": display_name,
         "headline": headline,
         "summary": summary,
@@ -229,10 +246,12 @@ def compose_weather_content(
     composer_config=None,
 ):
     data = forecast_data if isinstance(forecast_data, dict) else {}
-    config = composer_config or get_composer_config()
+    config = normalize_composer_config(
+        composer_config or get_composer_config()
+    )
 
     try:
-        monsoon_system = find_monsoon_system(
+        weather_system_name, weather_system = find_weather_system(
             parsed_forecast_text,
             data,
             config,
@@ -242,12 +261,13 @@ def compose_weather_content(
             "cyclone_name_local"
         ):
             content = compose_cyclone_update(data, config)
-        elif monsoon_system:
-            content = compose_monsoon_update(
+        elif weather_system:
+            content = compose_weather_system_update(
                 parsed_forecast_text,
                 data,
                 config,
-                monsoon_system,
+                weather_system_name,
+                weather_system,
             )
         else:
             content = compose_fallback_update(

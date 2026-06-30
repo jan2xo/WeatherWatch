@@ -160,11 +160,14 @@ check_file "config/windy_layers.json"
 
 check_python_compile
 run_optional_test "tests/verify_forecast_parser.py"
+run_optional_test "tests/verify_content_composer.py"
+run_optional_test "tests/verify_content_composer_config.py"
 run_optional_test "tests/verify_template_guardrails.py"
 run_optional_test "tests/verify_language_normalization.py"
 run_optional_test "tests/verify_text_post_publisher.py"
 run_optional_test "tests/verify_windy_layers.py"
 run_optional_test "tests/verify_approval_state_safety.py"
+run_optional_test "tests/verify_telegram_intent_commands.py"
 check_systemd
 check_health_endpoint
 
