@@ -82,6 +82,20 @@ def main():
         assert secret not in str(health)
         assert health["admin_secret_configured"] is True
         assert health["dashboard_actions_enabled"] is True
+        for field in (
+            "framing_matched_regions",
+            "framing_parent_groups",
+            "framing_fallback_used",
+            "framing_fallback_reason",
+        ):
+            assert field in health
+        for label in (
+            "Matched Regions",
+            "Parent Groups",
+            "Framing Fallback",
+            "Fallback Reason",
+        ):
+            assert label in page
 
         original_dashboard_get_job = dashboard.get_current_job
         try:

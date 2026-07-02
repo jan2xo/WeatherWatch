@@ -23,7 +23,7 @@ from storage.approval_store import get_current_job
 from storage.facebook_token_store import STATE_FILE as FACEBOOK_TOKEN_STATE_FILE
 
 
-APP_VERSION = "0.8.9"
+APP_VERSION = "0.9.0"
 STARTED_AT = datetime.now()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_ROOT = (PROJECT_ROOT / "output").resolve()
@@ -303,6 +303,7 @@ def build_health_payload():
     scheduler_status = safe_scheduler_status()
     windy_status = safe_windy_status()
     state_files = get_state_file_status()
+    framing_decision = job.get("framing_decision") or {}
     facebook_health = facebook_status.get("status") not in {"invalid", "missing"}
     template_health = template_status.get("validation_status") == "valid"
     scheduler_health = (
@@ -338,6 +339,17 @@ def build_health_payload():
         "current_windy_url": job.get("windy_url"),
         "windy_status": windy_status,
         "framing_decision": job.get("framing_decision"),
+        "framing_source": framing_decision.get("source"),
+        "framing_matched_region": framing_decision.get("matched_region_id"),
+        "framing_matched_areas": framing_decision.get("matched_areas") or [],
+        "framing_matched_regions": (
+            framing_decision.get("matched_regions") or []
+        ),
+        "framing_parent_groups": (
+            framing_decision.get("resolved_parent_groups") or []
+        ),
+        "framing_fallback_used": framing_decision.get("fallback_used", False),
+        "framing_fallback_reason": framing_decision.get("fallback_reason"),
         "dashboard_actions_enabled": dashboard_actions_enabled(),
         "admin_secret_configured": is_admin_secret_configured(),
         "last_error": get_last_error(
@@ -488,6 +500,23 @@ def dashboard_script():
       setField("job.windy_layer_label", data.windy_layer_label);
       setField("job.suggested_windy_layer", data.suggested_windy_layer);
       setField("job.windy_url", data.current_windy_url);
+      setField("job.framing_source", data.framing_source);
+      setField("job.framing_matched_region", data.framing_matched_region);
+      setField(
+        "job.framing_matched_areas",
+        (data.framing_matched_areas || []).join(", ")
+      );
+      setField(
+        "job.framing_matched_regions",
+        (data.framing_matched_regions || []).join(", ")
+      );
+      setField(
+        "job.framing_parent_groups",
+        (data.framing_parent_groups || []).join(", ")
+      );
+      setField("job.framing_fallback_used", data.framing_fallback_used);
+      setField("job.framing_fallback_reason", data.framing_fallback_reason);
+      setField("job.framing", JSON.stringify(data.framing_decision || null));
       const preview = document.querySelector("[data-current-image]");
       if (preview) {
         preview.hidden = !data.current_image_available;
@@ -903,6 +932,41 @@ def render_admin_page(message=None, message_is_error=False):
             ("Headline", job.get("headline"), "job.headline"),
             ("Facebook Caption", job.get("facebook_caption"), "job.caption"),
             ("Final Image", job.get("image"), "job.image"),
+            (
+                "Framing Source",
+                (job.get("framing_decision") or {}).get("source"),
+                "job.framing_source",
+            ),
+            (
+                "Matched Region",
+                (job.get("framing_decision") or {}).get("matched_region_id"),
+                "job.framing_matched_region",
+            ),
+            (
+                "Matched Areas",
+                ", ".join((job.get("framing_decision") or {}).get("matched_areas") or []),
+                "job.framing_matched_areas",
+            ),
+            (
+                "Matched Regions",
+                ", ".join((job.get("framing_decision") or {}).get("matched_regions") or []),
+                "job.framing_matched_regions",
+            ),
+            (
+                "Parent Groups",
+                ", ".join((job.get("framing_decision") or {}).get("resolved_parent_groups") or []),
+                "job.framing_parent_groups",
+            ),
+            (
+                "Framing Fallback",
+                (job.get("framing_decision") or {}).get("fallback_used"),
+                "job.framing_fallback_used",
+            ),
+            (
+                "Fallback Reason",
+                (job.get("framing_decision") or {}).get("fallback_reason"),
+                "job.framing_fallback_reason",
+            ),
             ("Framing", framing_summary, "job.framing"),
             ("Pending Policy", scheduler_policy, "job.pending_policy"),
             ("Last Error", job.get("last_error"), "job.last_error"),

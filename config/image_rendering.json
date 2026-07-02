@@ -21,34 +21,203 @@
       },
       "regions": {
         "philippines": {
+          "parent_group": "philippines",
+          "aliases": [
+            "Philippines",
+            "the Philippines",
+            "Pilipinas"
+          ],
           "center_lat": 12.8797,
           "center_lon": 121.774,
-          "zoom": 5
+          "zoom": 5,
+          "pan_x": 0,
+          "pan_y": 0
         },
         "luzon": {
+          "parent_group": "luzon",
+          "aliases": [
+            "Luzon"
+          ],
           "center_lat": 16.0,
           "center_lon": 121.0,
-          "zoom": 6
+          "zoom": 6,
+          "pan_x": 0,
+          "pan_y": 0
         },
         "visayas": {
+          "parent_group": "visayas",
+          "aliases": [
+            "Visayas"
+          ],
           "center_lat": 10.5,
           "center_lon": 123.5,
-          "zoom": 6
+          "zoom": 6,
+          "pan_x": 0,
+          "pan_y": 0
         },
         "luzon_visayas": {
+          "parent_group": "philippines",
+          "aliases": [
+            "Luzon and Visayas",
+            "Luzon at Visayas"
+          ],
           "center_lat": 13.5,
           "center_lon": 122.5,
-          "zoom": 10
+          "zoom": 10,
+          "pan_x": 0,
+          "pan_y": 0
         },
         "mindanao": {
+          "parent_group": "mindanao",
+          "aliases": [
+            "Mindanao"
+          ],
           "center_lat": 7.8,
           "center_lon": 125.0,
-          "zoom": 6
+          "zoom": 6,
+          "pan_x": 0,
+          "pan_y": 0
+        },
+        "visayas_mindanao": {
+          "parent_group": "philippines",
+          "aliases": [
+            "Visayas and Mindanao",
+            "Visayas at Mindanao"
+          ],
+          "center_lat": 8.9,
+          "center_lon": 124.3,
+          "zoom": 5,
+          "pan_x": 0,
+          "pan_y": 0
         },
         "northern_luzon": {
+          "parent_group": "luzon",
+          "aliases": [
+            "Northern Luzon",
+            "Hilagang Luzon"
+          ],
           "center_lat": 17.5,
           "center_lon": 121.5,
-          "zoom": 6
+          "zoom": 6,
+          "pan_x": 0,
+          "pan_y": 0
+        },
+        "southern_luzon": {
+          "parent_group": "luzon",
+          "aliases": [
+            "Southern Luzon",
+            "Timog Luzon"
+          ],
+          "center_lat": 13.5,
+          "center_lon": 121.3,
+          "zoom": 6,
+          "pan_x": 0,
+          "pan_y": 0
+        },
+        "central_luzon": {
+          "parent_group": "luzon",
+          "aliases": [
+            "Central Luzon",
+            "Gitnang Luzon"
+          ],
+          "center_lat": 15.3,
+          "center_lon": 120.8,
+          "zoom": 7,
+          "pan_x": 0,
+          "pan_y": 0
+        },
+        "western_luzon": {
+          "parent_group": "luzon",
+          "aliases": [
+            "Western Luzon",
+            "Kanlurang Luzon"
+          ]
+        },
+        "eastern_luzon": {
+          "parent_group": "luzon",
+          "aliases": [
+            "Eastern Luzon",
+            "Silangang Luzon"
+          ]
+        },
+        "northern_visayas": {
+          "parent_group": "visayas",
+          "aliases": [
+            "Northern Visayas",
+            "Hilagang Visayas"
+          ]
+        },
+        "central_visayas": {
+          "parent_group": "visayas",
+          "aliases": [
+            "Central Visayas",
+            "Gitnang Visayas"
+          ]
+        },
+        "southern_visayas": {
+          "parent_group": "visayas",
+          "aliases": [
+            "Southern Visayas",
+            "Timog Visayas"
+          ]
+        },
+        "western_visayas": {
+          "parent_group": "visayas",
+          "aliases": [
+            "Western Visayas",
+            "Kanlurang Visayas"
+          ]
+        },
+        "eastern_visayas": {
+          "parent_group": "visayas",
+          "aliases": [
+            "Eastern Visayas",
+            "Silangang Visayas"
+          ]
+        },
+        "northern_mindanao": {
+          "parent_group": "mindanao",
+          "aliases": [
+            "Northern Mindanao",
+            "Hilagang Mindanao"
+          ]
+        },
+        "central_mindanao": {
+          "parent_group": "mindanao",
+          "aliases": [
+            "Central Mindanao",
+            "Gitnang Mindanao"
+          ]
+        },
+        "southern_mindanao": {
+          "parent_group": "mindanao",
+          "aliases": [
+            "Southern Mindanao",
+            "Timog Mindanao"
+          ]
+        },
+        "western_mindanao": {
+          "parent_group": "mindanao",
+          "aliases": [
+            "Western Mindanao",
+            "Kanlurang Mindanao"
+          ]
+        },
+        "eastern_mindanao": {
+          "parent_group": "mindanao",
+          "aliases": [
+            "Eastern Mindanao",
+            "Silangang Mindanao"
+          ]
+        }
+      },
+      "area_routing": {
+        "enabled": true,
+        "parent_group_combinations": {
+          "luzon+visayas": "luzon_visayas",
+          "visayas+mindanao": "visayas_mindanao",
+          "luzon+mindanao": "philippines",
+          "luzon+visayas+mindanao": "philippines"
         }
       },
       "situations": {

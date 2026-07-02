@@ -4,6 +4,25 @@ All notable changes to WeatherWatch are documented here.
 
 ---
 
+# v0.9.0 — Intelligent Hierarchical Area Routing
+
+## Added
+
+* Config-driven `parent_group` and aliases for broad regions and predictable Luzon, Visayas, and Mindanao subregions.
+* Optional dedicated subregion framing with automatic parent fallback.
+* Parent-group combination routing without enumerating subregion combinations.
+* Framing metadata for matched regions, resolved parent groups, and fallback reasons.
+* Dashboard, `/health`, `/image_status`, and `/image_manual` visibility for hierarchical routing.
+
+## Changed
+
+* Generic weather-system framing is now a fallback after parsed affected areas.
+* Habagat affecting Mindanao now frames Mindanao instead of the old Luzon/Visayas default.
+* Normalized headline, short, body, and raw PAGASA area forms can match configured region aliases.
+* Forecasts spanning Luzon, Visayas, and Mindanao now use full Philippines framing.
+
+---
+
 # v0.8.9 — Generalized Weather System Composer Config
 
 ## Added

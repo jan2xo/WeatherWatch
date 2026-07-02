@@ -1,6 +1,6 @@
 # WeatherWatch Features and Extension Guide
 
-Version: 0.8.9
+Version: 0.9.0
 Repository audit date: 2026-06-28
 
 This document is the code-facing reference for WeatherWatch. It explains the
@@ -395,13 +395,13 @@ in `config/image_rendering.json`, not these modules.
 
 Converts structured forecast facts into an executable framing decision.
 
-Detection priority:
+Decision priority:
 
 1. Cyclone fields plus coordinates.
-2. Structured affected-weather-system aliases.
-3. LPA aliases in raw text.
-4. Other configured aliases in raw text.
-5. Configured default.
+2. Parsed affected areas through hierarchical region aliases.
+3. Parent-group combinations such as `luzon+visayas`.
+4. Structured affected-weather-system aliases and raw-text situation aliases.
+5. Configured Philippines default.
 
 Strategies:
 
@@ -413,34 +413,117 @@ configured default and records the detected situation and fallback use.
 
 The service does not invent coordinates or landfall regions.
 
+Affected-area routing is intentionally checked before generic weather-system
+defaults. For example, `Southwest Monsoon` still detects the
+`monsoon_southwest` situation, but if `affected_areas` contains `Mindanao`,
+the final map region becomes `mindanao` instead of the old
+`luzon_visayas` Habagat fallback.
+
 Decision shape:
 
 ```json
 {
   "enabled": true,
   "strategy": "region",
-  "center_lat": 13.5,
-  "center_lon": 122.5,
-  "zoom": 7,
+  "center_lat": 12.8797,
+  "center_lon": 121.774,
+  "zoom": 5,
   "pan_x": 0,
-  "pan_y": -3,
-  "region_id": "luzon_visayas",
+  "pan_y": 0,
+  "region_id": "philippines",
   "situation_id": "monsoon_southwest",
-  "reason": "Habagat affecting Luzon and Visayas"
+  "source": "affected_area",
+  "matched_areas": ["Timog Luzon", "Visayas", "Mindanao"],
+  "matched_regions": ["southern_luzon", "visayas", "mindanao"],
+  "resolved_parent_groups": ["luzon", "visayas", "mindanao"],
+  "matched_region_id": "philippines",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "reason": "Affected area framing matched philippines"
 }
 ```
 
-### Map Framing Configuration
+### Intelligent Hierarchical Area Routing
 
 `config/image_rendering.json` contains both:
 
 - `manual_image`: user-submitted image fit policy;
 - `auto_map`: automatic provider map policy.
 
-Situation-level zoom and pan values are authoritative for matched situations.
-Region entries provide geographic centers and reusable region defaults.
+Each `auto_map.framing.regions` entry declares:
+
+- `parent_group`: `philippines`, `luzon`, `visayas`, or `mindanao`;
+- `aliases`: predictable English and Filipino area names;
+- optional `center_lat`, `center_lon`, and `zoom`;
+- optional `pan_x` and `pan_y`.
+
+Dedicated framing is optional for subregions. If a subregion has no complete
+center/zoom definition, the resolver uses its parent-group framing. Adding
+dedicated framing later requires only a JSON edit.
+
+`auto_map.framing.area_routing` contains:
+
+- `enabled`: turns affected-area-first routing on or off;
+- `parent_group_combinations`: maps the small, stable set of island-group
+  combinations to configured broad framing regions.
+
+Region example:
+
+```json
+{
+  "southern_visayas": {
+    "parent_group": "visayas",
+    "aliases": ["Southern Visayas", "Timog Visayas"]
+  }
+}
+```
+
+This entry resolves `southern_visayas`, then falls back to the configured
+`visayas` center and zoom. Adding `center_lat`, `center_lon`, and `zoom` makes
+the same subregion use dedicated framing without a Python change.
+
+Parent-group combination rules:
+
+- `{luzon}` -> `luzon`, unless one matched subregion has dedicated framing;
+- `{visayas}` -> `visayas`, with the same dedicated-framing rule;
+- `{mindanao}` -> `mindanao`, with the same dedicated-framing rule;
+- `{luzon, visayas}` -> `luzon_visayas`;
+- `{visayas, mindanao}` -> `visayas_mindanao`;
+- `{luzon, mindanao}` -> `philippines`;
+- `{luzon, visayas, mindanao}` -> `philippines`;
+- any match containing parent group `philippines` -> `philippines`.
+
+Routing tries normalized headline forms, normalized short forms, normalized
+body forms, then raw PAGASA affected areas. Translation stays in the language
+normalization service; the framing service matches only configured aliases.
+
+Job state stores resolved results only:
+
+- `matched_regions`;
+- `resolved_parent_groups`;
+- `fallback_used`;
+- `fallback_reason`;
+- final center, zoom, pan, and region.
+
+State files never contain routing rules.
+
+Known constraints:
+
+- all final center, zoom, and pan values must come from
+  `config/image_rendering.json`;
+- aliases must be configured for predictable new area names;
+- a subregion without dedicated framing intentionally uses its broad parent;
+- unknown affected-area text falls back to the detected weather-system
+  situation;
+- PANaHON still needs its own provider adapter before it can apply these
+  coordinates to the browser map.
 
 Use `/image_reload` after editing the file directly.
+
+Verification covers broad regions, dedicated Southern Luzon framing, parent
+fallback for Southern Visayas and Southern Mindanao, all supported parent
+combinations, affected-area precedence, unknown-area fallback, config-driven
+zoom/pan, and unchanged manual image output dimensions.
 
 Runtime image-fit selection uses explicit intent commands:
 
@@ -638,7 +721,7 @@ uses normalized headline/body area forms, preserves structured cyclone facts,
 and never intentionally invents measurements. Cyclone composition has
 priority, followed by configured weather systems, then the general fallback.
 
-Configured systems in v0.8.9:
+Configured systems include:
 
 - Southwest Monsoon / Habagat;
 - Northeast Monsoon / Amihan;
@@ -1094,7 +1177,7 @@ backups, rollback, and security guidance.
 | `tests/verify_content_composer_config.py` | Generalized schema, legacy normalization, aliases, placeholders, wording, last-known-good |
 | `tests/verify_template_guardrails.py` | Template schema, placeholders, retention, malformed parser input |
 | `tests/verify_image_rendering.py` | Fit modes, aspect ratios, center preservation, invalid config |
-| `tests/verify_map_framing.py` | Situations, coordinates, zoom, pan, fallback, legacy config, provider URL framing |
+| `tests/verify_map_framing.py` | Affected-area priority, combinations, situations, coordinates, zoom, pan, fallback, legacy config, provider URL framing |
 | `tests/verify_scheduler_config.py` | Scheduler schema, disabled jobs, defaults, reload, invalid uploads |
 | `tests/verify_dashboard_control_plane.py` | Dashboard authorization, shared actions, modify/retry state rules, secret exposure |
 | `tests/verify_language_normalization.py` | Direction/region coverage, forms, composer integration, fallback, invalid upload |

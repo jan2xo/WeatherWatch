@@ -120,6 +120,10 @@ load_dotenv()
 
 MAX_DERIVED_HEADLINE_LENGTH = 70
 UNAUTHORIZED_MESSAGE = "Unauthorized."
+MODIFY_LABEL_PATTERN = re.compile(
+    r"^\s*(HEADLINES?|CAPTIONS?)\s*:\s*",
+    re.IGNORECASE | re.MULTILINE,
+)
 MODIFY_HELP_TEXT = (
     "<b>Modify Help:</b>\n"
     "/modify + full caption updates the Facebook/Instagram caption and derives the GPX headline from the first line.\n"
@@ -316,10 +320,10 @@ def extract_headline_from_caption(caption: str) -> str:
 def parse_labeled_modify_text(text: str):
     text = strip_command(text)
     result = {}
-    labels = list(re.finditer(r"(?im)^\s*(HEADLINE|CAPTION)\s*:\s*", text))
+    labels = list(MODIFY_LABEL_PATTERN.finditer(text))
 
     for index, match in enumerate(labels):
-        label = match.group(1).lower()
+        label = match.group(1).lower().removesuffix("s")
         start = match.end()
         end = labels[index + 1].start() if index + 1 < len(labels) else len(text)
         value = text[start:end].strip()
@@ -346,7 +350,7 @@ def parse_modify_text(text: str):
     # /modify
     # HEADLINE: ...
     # CAPTION: ...
-    if "HEADLINE:" in raw.upper() or "CAPTION:" in raw.upper():
+    if MODIFY_LABEL_PATTERN.search(raw):
         return parse_labeled_modify_text(text)
 
     # New mobile-friendly format:
@@ -493,7 +497,9 @@ async def image_manual_command(update: Update, context: ContextTypes.DEFAULT_TYP
         "manual_image:\n"
         "Controls only user-submitted photos and screenshots. Available fit modes are stretch, smartfit, and crop.\n\n"
         "auto_map:\n"
-        "Uses parsed PAGASA conditions to choose configured regions, zoom, and geographic pan offsets for automatic provider maps. pan_x adjusts longitude and pan_y adjusts latitude in degrees.\n\n"
+        "Uses parsed PAGASA conditions to choose configured regions, zoom, and geographic pan offsets for automatic provider maps. Affected-area routing is checked before generic weather-system defaults.\n\n"
+        "Hierarchical area routing:\n"
+        "Each region declares aliases and a parent_group: philippines, luzon, visayas, or mindanao. Dedicated center/zoom values are optional for subregions. A subregion without dedicated framing inherits its parent group. Multi-area forecasts combine parent groups automatically, so subregion combinations do not need to be listed individually. pan_x adjusts longitude and pan_y adjusts latitude in degrees.\n\n"
         "Commands:\n"
         "/image_fit - View the current manual fit mode.\n"
         "/image_fit_stretch - Use direct resize for future manual images.\n"
@@ -525,6 +531,13 @@ def format_image_fit_status(status):
 def format_image_status(status):
     default = status.get("default_framing") or {}
     situations = ", ".join(status.get("framing_situations") or ()) or "None"
+    area_aliases = ", ".join(status.get("area_routing_aliases") or ()) or "None"
+    area_combinations = (
+        ", ".join(status.get("area_routing_combinations") or ()) or "None"
+    )
+    fallback_regions = (
+        ", ".join(status.get("parent_fallback_regions") or ()) or "None"
+    )
     return (
         "Image Rendering Status\n\n"
         f"Config: {status.get('config_path')}\n"
@@ -536,8 +549,13 @@ def format_image_status(status):
         f"Manual canvas: {status.get('target_width')}x{status.get('target_height')}\n\n"
         f"Auto map enabled: {status.get('auto_map_enabled')}\n"
         f"Framing enabled: {status.get('framing_enabled')}\n"
+        f"Area routing enabled: {status.get('area_routing_enabled')}\n"
         f"Default framing: {default.get('region_id')} at zoom {default.get('zoom')}\n"
-        f"Situations: {situations}"
+        f"Situations: {situations}\n"
+        f"Hierarchical regions: {status.get('hierarchical_region_count', 0)}\n"
+        f"Regions with aliases: {area_aliases}\n"
+        f"Parent combinations: {area_combinations}\n"
+        f"Parent fallback regions: {fallback_regions}"
     )
 
 

@@ -1,6 +1,7 @@
 import copy
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -55,7 +56,8 @@ def default_language_config():
 
 
 def normalize_lookup_key(value):
-    return " ".join(str(value or "").strip().casefold().split())
+    normalized = " ".join(str(value or "").strip().casefold().split())
+    return re.sub(r"\bsections\b", "section", normalized)
 
 
 def required_area_phrases():

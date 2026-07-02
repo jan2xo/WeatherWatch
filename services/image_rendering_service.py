@@ -17,6 +17,32 @@ TARGET_SIZE = (1080, 1350)
 DEFAULT_FIT_MODE = "smartfit"
 SUPPORTED_FIT_MODES = ("stretch", "smartfit", "crop")
 SUPPORTED_FRAMING_STRATEGIES = ("region", "weather_system")
+PARENT_REGION_GROUPS = ("philippines", "luzon", "visayas", "mindanao")
+REQUIRED_BROAD_REGIONS = (
+    "philippines",
+    "luzon",
+    "visayas",
+    "mindanao",
+    "luzon_visayas",
+    "visayas_mindanao",
+)
+REQUIRED_SUBREGIONS = (
+    "northern_luzon",
+    "central_luzon",
+    "southern_luzon",
+    "western_luzon",
+    "eastern_luzon",
+    "northern_visayas",
+    "central_visayas",
+    "southern_visayas",
+    "western_visayas",
+    "eastern_visayas",
+    "northern_mindanao",
+    "central_mindanao",
+    "southern_mindanao",
+    "western_mindanao",
+    "eastern_mindanao",
+)
 MAX_IMAGE_RENDERING_UPLOAD_BYTES = 100 * 1024
 MAX_IMAGE_RENDERING_BACKUPS = 10
 
@@ -49,34 +75,145 @@ def default_config():
                 },
                 "regions": {
                     "philippines": {
+                        "parent_group": "philippines",
+                        "aliases": [
+                            "Philippines",
+                            "the Philippines",
+                            "Pilipinas",
+                        ],
                         "center_lat": 12.8797,
                         "center_lon": 121.7740,
                         "zoom": 5,
                     },
                     "luzon": {
+                        "parent_group": "luzon",
+                        "aliases": ["Luzon"],
                         "center_lat": 16.0,
                         "center_lon": 121.0,
                         "zoom": 6,
                     },
                     "visayas": {
+                        "parent_group": "visayas",
+                        "aliases": ["Visayas"],
                         "center_lat": 10.5,
                         "center_lon": 123.5,
                         "zoom": 6,
+                        "pan_x": 0,
+                        "pan_y": 0,
                     },
                     "luzon_visayas": {
+                        "parent_group": "philippines",
+                        "aliases": ["Luzon and Visayas", "Luzon at Visayas"],
                         "center_lat": 13.5,
                         "center_lon": 122.5,
                         "zoom": 5,
+                        "pan_x": 0,
+                        "pan_y": 0,
                     },
                     "mindanao": {
+                        "parent_group": "mindanao",
+                        "aliases": ["Mindanao"],
                         "center_lat": 7.8,
                         "center_lon": 125.0,
                         "zoom": 6,
+                        "pan_x": 0,
+                        "pan_y": 0,
+                    },
+                    "visayas_mindanao": {
+                        "parent_group": "philippines",
+                        "aliases": [
+                            "Visayas and Mindanao",
+                            "Visayas at Mindanao",
+                        ],
+                        "center_lat": 8.9,
+                        "center_lon": 124.3,
+                        "zoom": 5,
+                        "pan_x": 0,
+                        "pan_y": 0,
                     },
                     "northern_luzon": {
+                        "parent_group": "luzon",
+                        "aliases": ["Northern Luzon", "Hilagang Luzon"],
                         "center_lat": 17.5,
                         "center_lon": 121.5,
                         "zoom": 6,
+                        "pan_x": 0,
+                        "pan_y": 0,
+                    },
+                    "southern_luzon": {
+                        "parent_group": "luzon",
+                        "aliases": ["Southern Luzon", "Timog Luzon"],
+                        "center_lat": 13.5,
+                        "center_lon": 121.3,
+                        "zoom": 6,
+                        "pan_x": 0,
+                        "pan_y": 0,
+                    },
+                    "central_luzon": {
+                        "parent_group": "luzon",
+                        "aliases": ["Central Luzon", "Gitnang Luzon"],
+                        "center_lat": 15.3,
+                        "center_lon": 120.8,
+                        "zoom": 7,
+                        "pan_x": 0,
+                        "pan_y": 0,
+                    },
+                    "western_luzon": {
+                        "parent_group": "luzon",
+                        "aliases": ["Western Luzon", "Kanlurang Luzon"],
+                    },
+                    "eastern_luzon": {
+                        "parent_group": "luzon",
+                        "aliases": ["Eastern Luzon", "Silangang Luzon"],
+                    },
+                    "northern_visayas": {
+                        "parent_group": "visayas",
+                        "aliases": ["Northern Visayas", "Hilagang Visayas"],
+                    },
+                    "central_visayas": {
+                        "parent_group": "visayas",
+                        "aliases": ["Central Visayas", "Gitnang Visayas"],
+                    },
+                    "southern_visayas": {
+                        "parent_group": "visayas",
+                        "aliases": ["Southern Visayas", "Timog Visayas"],
+                    },
+                    "western_visayas": {
+                        "parent_group": "visayas",
+                        "aliases": ["Western Visayas", "Kanlurang Visayas"],
+                    },
+                    "eastern_visayas": {
+                        "parent_group": "visayas",
+                        "aliases": ["Eastern Visayas", "Silangang Visayas"],
+                    },
+                    "northern_mindanao": {
+                        "parent_group": "mindanao",
+                        "aliases": ["Northern Mindanao", "Hilagang Mindanao"],
+                    },
+                    "central_mindanao": {
+                        "parent_group": "mindanao",
+                        "aliases": ["Central Mindanao", "Gitnang Mindanao"],
+                    },
+                    "southern_mindanao": {
+                        "parent_group": "mindanao",
+                        "aliases": ["Southern Mindanao", "Timog Mindanao"],
+                    },
+                    "western_mindanao": {
+                        "parent_group": "mindanao",
+                        "aliases": ["Western Mindanao", "Kanlurang Mindanao"],
+                    },
+                    "eastern_mindanao": {
+                        "parent_group": "mindanao",
+                        "aliases": ["Eastern Mindanao", "Silangang Mindanao"],
+                    },
+                },
+                "area_routing": {
+                    "enabled": True,
+                    "parent_group_combinations": {
+                        "luzon+visayas": "luzon_visayas",
+                        "visayas+mindanao": "visayas_mindanao",
+                        "luzon+mindanao": "philippines",
+                        "luzon+visayas+mindanao": "philippines",
                     },
                 },
                 "situations": {
@@ -140,19 +277,69 @@ def normalize_config(config):
     if not isinstance(config, dict):
         raise ValueError("Image rendering configuration must be a JSON object.")
 
-    if not is_old_flat_config(config):
-        return copy.deepcopy(config)
+    if is_old_flat_config(config):
+        normalized = default_config()
+        normalized["manual_image"] = {
+            "fit_mode": config.get("fit_mode"),
+            "target_width": config.get("target_width"),
+            "target_height": config.get("target_height"),
+        }
 
-    normalized = default_config()
-    normalized["manual_image"] = {
-        "fit_mode": config.get("fit_mode"),
-        "target_width": config.get("target_width"),
-        "target_height": config.get("target_height"),
-    }
+        for key, value in config.items():
+            if key not in {"fit_mode", "target_width", "target_height"}:
+                normalized[key] = copy.deepcopy(value)
+    else:
+        normalized = copy.deepcopy(config)
 
-    for key, value in config.items():
-        if key not in {"fit_mode", "target_width", "target_height"}:
-            normalized[key] = copy.deepcopy(value)
+    framing = (
+        normalized.get("auto_map", {})
+        .get("framing")
+    )
+    if not isinstance(framing, dict):
+        return normalized
+
+    regions = framing.get("regions")
+    if not isinstance(regions, dict):
+        return normalized
+
+    defaults = default_config()["auto_map"]["framing"]["regions"]
+    legacy_aliases = (
+        (framing.get("area_routing") or {}).get("aliases") or {}
+    )
+    legacy_combinations = (
+        (framing.get("area_routing") or {}).get("combinations") or {}
+    )
+    legacy_hierarchical_config = bool(
+        legacy_aliases or legacy_combinations
+    )
+    area_routing = framing.get("area_routing")
+    if isinstance(area_routing, dict) and legacy_hierarchical_config:
+        area_routing.setdefault(
+            "parent_group_combinations",
+            copy.deepcopy(
+                default_config()["auto_map"]["framing"]["area_routing"][
+                    "parent_group_combinations"
+                ]
+            ),
+        )
+    for region_id, default_region in defaults.items():
+        if region_id not in regions:
+            if legacy_hierarchical_config:
+                regions[region_id] = copy.deepcopy(default_region)
+            continue
+
+        region = regions[region_id]
+        if not isinstance(region, dict):
+            continue
+        if legacy_hierarchical_config:
+            region.setdefault(
+                "parent_group",
+                default_region["parent_group"],
+            )
+            aliases = region.get("aliases") or legacy_aliases.get(region_id)
+            if not aliases:
+                aliases = default_region["aliases"]
+            region["aliases"] = copy.deepcopy(aliases)
 
     return normalized
 
@@ -196,6 +383,98 @@ def validate_framing_entry(entry, path, regions, allow_weather_system=True):
             raise ValueError(f"{path}.region_id is not configured.")
 
 
+def validate_area_routing(area_routing, regions):
+    path = "auto_map.framing.area_routing"
+    if area_routing is None:
+        return
+    if not isinstance(area_routing, dict):
+        raise ValueError(f"{path} must be an object.")
+
+    require_bool(area_routing.get("enabled"), f"{path}.enabled")
+
+    aliases = area_routing.get("aliases")
+    combinations = area_routing.get("combinations")
+    parent_combinations = area_routing.get("parent_group_combinations")
+    if aliases is not None and not isinstance(aliases, dict):
+        raise ValueError(f"{path}.aliases must be an object.")
+    if combinations is not None and not isinstance(combinations, dict):
+        raise ValueError(f"{path}.combinations must be an object.")
+    if not isinstance(parent_combinations, dict):
+        raise ValueError(
+            f"{path}.parent_group_combinations must be an object."
+        )
+
+    for region_id, values in (aliases or {}).items():
+        alias_path = f"{path}.aliases.{region_id}"
+        if region_id not in regions:
+            raise ValueError(f"{alias_path} references an unknown region.")
+        if (
+            not isinstance(values, list)
+            or not values
+            or any(
+                not isinstance(value, str) or not value.strip()
+                for value in values
+            )
+        ):
+            raise ValueError(f"{alias_path} must contain strings.")
+
+    for combo_key, region_id in (combinations or {}).items():
+        combo_path = f"{path}.combinations.{combo_key}"
+        if not isinstance(combo_key, str) or not combo_key.strip():
+            raise ValueError(f"{combo_path} must use a non-empty key.")
+        combo_parts = combo_key.split("+")
+        if any(part not in regions for part in combo_parts):
+            raise ValueError(f"{combo_path} references an unknown region.")
+        if region_id not in regions:
+            raise ValueError(f"{combo_path} target region is not configured.")
+
+    for combo_key, region_id in parent_combinations.items():
+        combo_path = f"{path}.parent_group_combinations.{combo_key}"
+        combo_parts = combo_key.split("+")
+        if any(part not in PARENT_REGION_GROUPS for part in combo_parts):
+            raise ValueError(
+                f"{combo_path} must use configured parent groups."
+            )
+        if region_id not in regions:
+            raise ValueError(f"{combo_path} target region is not configured.")
+
+
+def validate_region(region_id, region):
+    path = f"auto_map.framing.regions.{region_id}"
+    if not isinstance(region, dict):
+        raise ValueError(f"{path} must be an object.")
+
+    parent_group = region.get("parent_group")
+    if parent_group not in PARENT_REGION_GROUPS:
+        raise ValueError(
+            f"{path}.parent_group must be one of "
+            f"{', '.join(PARENT_REGION_GROUPS)}."
+        )
+
+    aliases = region.get("aliases")
+    if (
+        not isinstance(aliases, list)
+        or not aliases
+        or any(
+            not isinstance(alias, str) or not alias.strip()
+            for alias in aliases
+        )
+    ):
+        raise ValueError(f"{path}.aliases must contain strings.")
+
+    framing_fields = ("center_lat", "center_lon", "zoom")
+    present_fields = [field for field in framing_fields if field in region]
+    if present_fields and len(present_fields) != len(framing_fields):
+        raise ValueError(
+            f"{path} must define center_lat, center_lon, and zoom together."
+        )
+    for field in present_fields:
+        require_number(region[field], f"{path}.{field}")
+    for field in ("pan_x", "pan_y"):
+        if field in region:
+            require_number(region[field], f"{path}.{field}")
+
+
 def validate_config(config):
     normalized = normalize_config(config)
 
@@ -230,12 +509,31 @@ def validate_config(config):
         if not isinstance(situations, dict):
             raise ValueError("auto_map.framing.situations must be an object.")
 
+        required_regions = set(REQUIRED_BROAD_REGIONS) | set(
+            REQUIRED_SUBREGIONS
+        )
+        missing_regions = sorted(required_regions - set(regions))
+        if missing_regions:
+            raise ValueError(
+                "Missing required framing regions: "
+                + ", ".join(missing_regions)
+            )
+
         for region_id, region in regions.items():
-            path = f"auto_map.framing.regions.{region_id}"
-            if not isinstance(region, dict):
-                raise ValueError(f"{path} must be an object.")
-            for field in ("center_lat", "center_lon", "zoom"):
-                require_number(region.get(field), f"{path}.{field}")
+            validate_region(region_id, region)
+
+        for region_id in REQUIRED_BROAD_REGIONS:
+            region = regions[region_id]
+            if not all(
+                field in region
+                for field in ("center_lat", "center_lon", "zoom")
+            ):
+                raise ValueError(
+                    f"auto_map.framing.regions.{region_id} "
+                    "requires dedicated framing."
+                )
+
+        validate_area_routing(framing.get("area_routing"), regions)
 
         validate_framing_entry(
             framing.get("default"),
@@ -357,6 +655,7 @@ def get_image_rendering_status(config_path=CONFIG_PATH):
     manual = config["manual_image"]
     auto_map = config["auto_map"]
     framing = auto_map.get("framing") or {}
+    regions = framing.get("regions") or {}
 
     if Path(config_path) == CONFIG_PATH:
         try:
@@ -387,6 +686,30 @@ def get_image_rendering_status(config_path=CONFIG_PATH):
         "default_framing": framing.get("default", {}),
         "framing_situations": tuple(
             (framing.get("situations") or {}).keys()
+        ),
+        "area_routing_enabled": (
+            (framing.get("area_routing") or {}).get("enabled", False)
+        ),
+        "area_routing_aliases": tuple(
+            region_id
+            for region_id, region in regions.items()
+            if region.get("aliases")
+        ),
+        "area_routing_combinations": tuple(
+            (
+                (framing.get("area_routing") or {})
+                .get("parent_group_combinations")
+                or {}
+            ).keys()
+        ),
+        "hierarchical_region_count": len(regions),
+        "parent_fallback_regions": tuple(
+            region_id
+            for region_id, region in regions.items()
+            if not all(
+                field in region
+                for field in ("center_lat", "center_lon", "zoom")
+            )
         ),
         "backup_count": count_backups(),
     }

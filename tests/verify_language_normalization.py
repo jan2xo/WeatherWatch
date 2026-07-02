@@ -58,6 +58,9 @@ def main():
     assert language.normalize_area_phrase(
         "  THE   WESTERN SECTION OF southern luzon  "
     ) == "kanlurang bahagi ng Timog Luzon"
+    assert language.normalize_area_phrase(
+        "the western sections of Southern Luzon"
+    ) == "kanlurang bahagi ng Timog Luzon"
 
     forecast = parse_forecast_text(
         "Southwest Monsoon affecting "
@@ -67,6 +70,17 @@ def main():
     assert content["headline"] == "Habagat Nakaaapekto sa Timog Luzon"
     assert "kanlurang bahagi ng Timog Luzon" in content["summary"]
     assert "sa the" not in content["summary"].casefold()
+
+    plural_sections_forecast = parse_forecast_text(
+        "Southwest Monsoon affecting the western sections of "
+        "Southern Luzon, Visayas and Mindanao."
+    )
+    plural_summary = plural_sections_forecast["composed_content"]["summary"]
+    assert (
+        "kanlurang bahagi ng Timog Luzon, Visayas, at Mindanao"
+        in plural_summary
+    )
+    assert "the western sections" not in plural_summary.casefold()
 
     missing_central = copy.deepcopy(config)
     del missing_central["area_phrases"][

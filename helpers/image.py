@@ -10,6 +10,8 @@ FONT_PATH = BASE_DIR / "assets" / "fonts" / "BebasNeue-Regular.otf"
 SOURCE_FONT_PATH = BASE_DIR / "assets" / "fonts" / "Arial Narrow.ttf"
 
 CREAM = (245, 239, 217)
+HEADLINE_BOX = (70, 24, 1010, 224)
+HEADLINE_SPACING = 10
 
 
 def wrap_text_by_pixels(draw, text, font, max_width):
@@ -76,7 +78,7 @@ def fit_font(
     return font, wrap_text_by_pixels(draw, text, font, max_width)
 
 
-def draw_centered_multiline(draw, text, font, y, fill, spacing=12):
+def multiline_text_size(draw, text, font, spacing=12):
     bbox = draw.multiline_textbbox(
         (0, 0),
         text,
@@ -84,8 +86,26 @@ def draw_centered_multiline(draw, text, font, y, fill, spacing=12):
         spacing=spacing,
         align="center",
     )
-    text_width = bbox[2] - bbox[0]
-    x = (CARD_SIZE[0] - text_width) // 2
+    return bbox, bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+
+def draw_centered_multiline_in_box(
+    draw,
+    text,
+    font,
+    box,
+    fill,
+    spacing=12,
+):
+    bbox, text_width, text_height = multiline_text_size(
+        draw,
+        text,
+        font,
+        spacing,
+    )
+    left, top, right, bottom = box
+    x = left + ((right - left) - text_width) / 2 - bbox[0]
+    y = top + ((bottom - top) - text_height) / 2 - bbox[1]
 
     draw.multiline_text(
         (x, y),
@@ -127,20 +147,20 @@ def compose_weather_card(
         draw=draw,
         text=headline,
         font_path=FONT_PATH,
-        max_width=860,
-        max_height=215,
+        max_width=HEADLINE_BOX[2] - HEADLINE_BOX[0],
+        max_height=HEADLINE_BOX[3] - HEADLINE_BOX[1],
         start_size=72,
-        min_size=42,
+        min_size=28,
         max_lines=3,
     )
 
-    draw_centered_multiline(
+    draw_centered_multiline_in_box(
         draw=draw,
         text=headline_text,
         font=headline_font,
-        y=42,
+        box=HEADLINE_BOX,
         fill=CREAM,
-        spacing=12,
+        spacing=HEADLINE_SPACING,
     )
 
     source_font = ImageFont.truetype(str(SOURCE_FONT_PATH), 24)

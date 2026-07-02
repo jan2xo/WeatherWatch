@@ -12,7 +12,7 @@ Rather than being a simple weather bot, WeatherWatch is designed as a production
 
 **Version**
 
-`v0.8.9`
+`v0.9.0`
 
 **Status**
 
@@ -20,7 +20,7 @@ Rather than being a simple weather bot, WeatherWatch is designed as a production
 
 Current focus:
 
-* Configurable Image Rendering
+* Intelligent Hierarchical Area Routing
 * VPS Production Deployment
 * Production Validation
 
@@ -47,6 +47,7 @@ Target milestone:
 * Dynamic branding
 * Smart rendering pipeline
 * Config-driven Windy satellite, radar, wind, rain, cloud, and temperature layers
+* Hierarchical affected-area framing with config-driven aliases, parent groups, and fallback
 
 ## Caption System
 
