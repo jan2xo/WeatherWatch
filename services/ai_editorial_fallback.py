@@ -159,6 +159,9 @@ def generate_with_fallback(
                 model=str(payload.get("model", "")),
                 fallback_level=index,
             )
+            selected_memory = set(context.get("memory_references", ()))
+            if any(reference not in selected_memory for reference in draft.memory_references):
+                raise AIEditorialError("AI output referenced memory outside the selected context.")
             facts = context.get("weather_facts", {})
             factual = factual_validator(draft, facts)
             if factual.state != "valid":
@@ -171,7 +174,9 @@ def generate_with_fallback(
                 fallback_level=index,
                 validation_state=factual.state,
                 validation_reasons=factual.reasons,
-                memory_references=draft.memory_references,
+                memory_references=draft.memory_references or tuple(
+                    context.get("memory_references", ())
+                ),
             )
             return draft, provenance
         except Exception as error:
