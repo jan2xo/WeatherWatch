@@ -104,6 +104,15 @@ def verify_dashboard_and_control_plane_visibility():
         assert summary["ai_status"] == "unavailable/degraded"
         assert health["requested_editorial_mode"] == "automatic"
         assert health["editorial_provenance"] == {"mode": "templated"}
+
+        job["editorial_mode"] = "ai_assisted"
+        job["ai_status"] = "available"
+        job["ai_provider"] = "openrouter"
+        job["ai_model"] = "free-model"
+        job["ai_fallback_level"] = 0
+        job["ai_validation_state"] = "valid"
+        editorial = control.get_editorial_status()
+        assert editorial["ai_fallback_level"] == "0"
     finally:
         control.get_current_job = original_control_job
         dashboard.get_current_job = original_dashboard_job
