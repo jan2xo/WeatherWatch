@@ -1,0 +1,58 @@
+name: WeatherWatch convergence
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [ready_for_review]
+    paths:
+      - "**.py"
+      - "config/**"
+      - "requirements.txt"
+      - "tests/**"
+      - ".github/workflows/convergence.yml"
+
+concurrency:
+  group: weatherwatch-convergence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deterministic-runtime-convergence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TELEGRAM_BOT_TOKEN: synthetic-test-token
+      TELEGRAM_CHAT_ID: "1"
+      TELEGRAM_ALLOWED_CHAT_IDS: "1"
+      FACEBOOK_PAGE_ID: synthetic-page
+      FACEBOOK_PAGE_ACCESS_TOKEN: synthetic-token
+    steps:
+      - name: Check out revision
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile Python modules
+        run: python -m compileall -q core services pipelines storage config tests
+
+      - name: Run deterministic and runtime convergence checks
+        run: |
+          python tests/verify_forecast_parser.py
+          python tests/verify_content_composer.py
+          python tests/verify_content_composer_config.py
+          python tests/verify_template_guardrails.py
+          python tests/verify_editorial_mode.py
+          python tests/verify_ai_editorial_contract.py
+          python tests/verify_ai_editorial_fallback.py
+          python tests/verify_state_repository.py
+          python tests/verify_approval_state_safety.py
+          python tests/verify_runtime_compatibility.py
+          python tests/verify_dashboard_control_plane.py
+          python tests/verify_editorial_operational_integration.py
+
