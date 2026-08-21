@@ -25,9 +25,11 @@ def generate_ai_editorial(facts):
     context = build_editorial_context(facts, memory_tags=_memory_tags(facts))
     providers = []
     unavailable = []
-    for config in get_enabled_provider_configs():
+    for configured_index, config in enumerate(get_enabled_provider_configs()):
         try:
-            providers.append(build_provider_from_config(config))
+            provider = build_provider_from_config(config)
+            provider.fallback_level = configured_index
+            providers.append(provider)
         except Exception as error:
             unavailable.append(f"{config['name']}: {error}")
     if not providers:
