@@ -1,12 +1,10 @@
-import json
-import os
-import tempfile
 import threading
-import time
+import os  # compatibility surface used by existing atomic-write safety tests
 from pathlib import Path
 from datetime import datetime, timedelta
 
 from services.post_type_config_service import get_job_post_type_defaults
+from storage.state_repository import JsonStateRepository
 
 
 STATE_FILE = Path("state/approval_state.json")
@@ -19,8 +17,6 @@ HISTORY_DATE_FIELDS = [
     "modified_at",
     "created_at",
 ]
-STATE_READ_ATTEMPTS = 3
-STATE_READ_RETRY_SECONDS = 0.02
 _STATE_LOCK = threading.RLock()
 
 
@@ -33,29 +29,7 @@ def default_state():
 
 def load_state():
     with _STATE_LOCK:
-        if not STATE_FILE.exists():
-            return default_state()
-
-        last_error = None
-        for attempt in range(STATE_READ_ATTEMPTS):
-            try:
-                return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                if not STATE_FILE.exists():
-                    return default_state()
-                last_error = FileNotFoundError(
-                    "Approval state temporarily unavailable."
-                )
-            except json.JSONDecodeError as error:
-                last_error = error
-
-            if attempt < STATE_READ_ATTEMPTS - 1:
-                time.sleep(STATE_READ_RETRY_SECONDS)
-
-        raise RuntimeError(
-            "Approval state could not be read safely. "
-            "The existing state file was not replaced."
-        ) from last_error
+        return JsonStateRepository(STATE_FILE).load(default_state)
 
 
 def parse_timestamp(value):
@@ -95,28 +69,7 @@ def prune_history(state):
 def save_state(state):
     with _STATE_LOCK:
         state = prune_history(state)
-        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = None
-
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                dir=STATE_FILE.parent,
-                prefix=f".{STATE_FILE.name}.",
-                suffix=".tmp",
-                delete=False,
-            ) as temporary:
-                temporary_path = Path(temporary.name)
-                json.dump(state, temporary, indent=2)
-                temporary.write("\n")
-                temporary.flush()
-                os.fsync(temporary.fileno())
-
-            os.replace(temporary_path, STATE_FILE)
-        finally:
-            if temporary_path and temporary_path.exists():
-                temporary_path.unlink()
+        JsonStateRepository(STATE_FILE).save(state)
 
 
 def create_current_job(job):
