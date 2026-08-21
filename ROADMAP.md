@@ -121,9 +121,9 @@ This roadmap is actively executing through bounded implementation PRs.
 - P7 — COMPLETE: validated adapter-neutral editorial/provider configuration with backward-compatible TEMPLATED defaults and safe dashboard/Telegram visibility; no provider SDKs, secrets, or production calls.
 - P8 — COMPLETE: state classification and a filesystem-compatible durable state boundary are documented and covered by restart, corruption, atomic-write, and approval-state compatibility verification.
 - P9 — COMPLETE: Render-compatible runtime requirements, generic managed-runtime port binding, health semantics, filesystem/durability boundary, and synthetic startup verification are documented without replacing VPS support or claiming deployment.
-- P10 — IN PROGRESS: minimum path-filtered, ready-for-review/workflow-dispatch convergence workflow is being added; full synthetic certification remains separate.
-- P11 — IN PROGRESS: integrated synthetic certification is being assembled from the real parser, composer, editorial boundaries, state repository, approval state, health surface, and synthetic peripheral providers.
-- P12 — NOT STARTED: deployment/runtime verification.
+- P10 — COMPLETE: minimum path-filtered, ready-for-review/workflow-dispatch convergence workflow is merged; full synthetic certification remains separate.
+- P11 — COMPLETE: integrated synthetic certification passed across real parser/composer/editorial/state/health boundaries with synthetic peripheral providers.
+- P12 — BLOCKED: repository-controlled deployment verification boundary and checklist are prepared; real deployment requires owner-controlled runtime authorization, durable storage, and secrets.
 
 Production deployment and production certification have not occurred. TEMPLATED remains the deterministic fallback; AI output is not meteorological authority.
 
