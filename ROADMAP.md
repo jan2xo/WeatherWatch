@@ -122,7 +122,8 @@ This roadmap is actively executing through bounded implementation PRs.
 - P8 — COMPLETE: state classification and a filesystem-compatible durable state boundary are documented and covered by restart, corruption, atomic-write, and approval-state compatibility verification.
 - P9 — COMPLETE: Render-compatible runtime requirements, generic managed-runtime port binding, health semantics, filesystem/durability boundary, and synthetic startup verification are documented without replacing VPS support or claiming deployment.
 - P10 — IN PROGRESS: minimum path-filtered, ready-for-review/workflow-dispatch convergence workflow is being added; full synthetic certification remains separate.
-- P11–P12 — NOT STARTED: integrated certification and deployment/runtime verification.
+- P11 — IN PROGRESS: integrated synthetic certification is being assembled from the real parser, composer, editorial boundaries, state repository, approval state, health surface, and synthetic peripheral providers.
+- P12 — NOT STARTED: deployment/runtime verification.
 
 Production deployment and production certification have not occurred. TEMPLATED remains the deterministic fallback; AI output is not meteorological authority.
 
