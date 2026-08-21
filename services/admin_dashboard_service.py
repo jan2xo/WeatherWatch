@@ -49,8 +49,18 @@ def is_admin_dashboard_enabled():
 
 
 def get_admin_dashboard_address():
-    host = get_optional_env("ADMIN_DASHBOARD_HOST") or DEFAULT_DASHBOARD_HOST
-    port = int(get_optional_env("ADMIN_DASHBOARD_PORT") or DEFAULT_DASHBOARD_PORT)
+    # Explicit dashboard settings remain authoritative. PORT is a generic
+    # managed-runtime convention and keeps the dashboard usable behind a
+    # platform health check without introducing a provider dependency.
+    host = get_optional_env("ADMIN_DASHBOARD_HOST")
+    if not host and get_optional_env("PORT"):
+        host = "0.0.0.0"
+    host = host or DEFAULT_DASHBOARD_HOST
+    port = int(
+        get_optional_env("ADMIN_DASHBOARD_PORT")
+        or get_optional_env("PORT")
+        or DEFAULT_DASHBOARD_PORT
+    )
     return host, port
 
 
@@ -341,6 +351,7 @@ def build_health_payload():
         scheduler_status.get("validation_status") == "valid"
     )
     windy_health = windy_status.get("validation_status") == "valid"
+    durable_state_available = state_files.get("approval_state", False) or not state_files
 
     return {
         "ok": bool(
@@ -350,6 +361,20 @@ def build_health_payload():
             and windy_health
         ),
         "app_version": APP_VERSION,
+        "application_alive": True,
+        "durable_state": {
+            "available": durable_state_available,
+            "approval_state_file_present": state_files.get("approval_state", False),
+        },
+        "editorial_subsystem": {
+            "templated_available": template_health,
+            "ai_configuration": ai_config_status.get("validation_status"),
+            "ai_optional": True,
+        },
+        "publication_subsystem": {
+            "facebook_status": facebook_status.get("status"),
+            "configured": facebook_health,
+        },
         "started_at": STARTED_AT.isoformat(timespec="seconds"),
         "uptime_seconds": get_uptime_seconds(),
         "telegram_status": {
