@@ -120,7 +120,8 @@ This roadmap is actively executing through bounded implementation PRs.
 - P6 — COMPLETE: operational mode metadata/status integration across generation, approval state, Telegram status, dashboard health/current-job visibility, and existing headless selection.
 - P7 — COMPLETE: validated adapter-neutral editorial/provider configuration with backward-compatible TEMPLATED defaults and safe dashboard/Telegram visibility; no provider SDKs, secrets, or production calls.
 - P8 — COMPLETE: state classification and a filesystem-compatible durable state boundary are documented and covered by restart, corruption, atomic-write, and approval-state compatibility verification.
-- P9–P12 — NOT STARTED: Render evaluation, CI economy, integrated certification, and deployment/runtime verification.
+- P9 — COMPLETE: Render-compatible runtime requirements, generic managed-runtime port binding, health semantics, filesystem/durability boundary, and synthetic startup verification are documented without replacing VPS support or claiming deployment.
+- P10–P12 — NOT STARTED: CI economy, integrated certification, and deployment/runtime verification.
 
 Production deployment and production certification have not occurred. TEMPLATED remains the deterministic fallback; AI output is not meteorological authority.
 
