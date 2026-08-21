@@ -113,9 +113,13 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** Establish the accepted boundary before autonomous workers change a working production-oriented system.
 
-**Dependencies:** None. This is the prerequisite governance and planning gate for all later phases.\n\n**Scope:** Adopt the canonical BKE Engineering Standard, Autonomous Core Instruction, repository-local instructions, this roadmap, and the existing feature guide as the planning authorities. Record the current revision and preserve current interfaces.
+**Dependencies:** None. This is the prerequisite governance and planning gate for all later phases.
 
-**Boundary protected:** Governance and review controls remain the containment boundary; the roadmap itself does not authorize implementation.\n\n**Acceptance:** Every future PR names its bounded requirement, dependencies, preserved interfaces, evidence, and explicit out-of-scope items. No worker treats this roadmap as permission to implement the whole upgrade.
+**Scope:** Adopt the canonical BKE Engineering Standard, Autonomous Core Instruction, repository-local instructions, this roadmap, and the existing feature guide as the planning authorities. Record the current revision and preserve current interfaces.
+
+**Boundary protected:** Governance and review controls remain the containment boundary; the roadmap itself does not authorize implementation.
+
+**Acceptance:** Every future PR names its bounded requirement, dependencies, preserved interfaces, evidence, and explicit out-of-scope items. No worker treats this roadmap as permission to implement the whole upgrade.
 
 **Verification:** Document inspection, clean branch/base evidence, and independent planning review.
 
@@ -127,7 +131,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** Current flow combines forecast parsing, composition, rendering, approval, and publishing. A stable boundary is needed before AI is introduced.
 
-**Dependencies:** Phase 0. The domain boundary must be based on the accepted governance hierarchy and the inspected current implementation.\n\n**Scope:** Map actual data structures and job fields from ingestion through approval and publication. Define a normalized weather-truth contract and an editorial-output contract without changing behavior. Identify where existing `forecast`, `captions`, `headline`, source attribution, and approval state are persisted.
+**Dependencies:** Phase 0. The domain boundary must be based on the accepted governance hierarchy and the inspected current implementation.
+
+**Scope:** Map actual data structures and job fields from ingestion through approval and publication. Define a normalized weather-truth contract and an editorial-output contract without changing behavior. Identify where existing `forecast`, `captions`, `headline`, source attribution, and approval state are persisted.
 
 **Boundary protected:** Raw authoritative facts must not be overwritten by editorial text.
 
@@ -143,7 +149,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** TEMPLATED is the deterministic safety path and must remain usable during provider outages.
 
-**Dependencies:** Phase 1. TEMPLATED stabilization depends on the documented weather-truth and editorial-output boundary.\n\n**Scope:** Stabilize the current template/composer path around the normalized facts contract. Preserve config reload, template guardrails, language normalization, post types, headline derivation, Telegram previews, and Facebook publication behavior. Record deterministic fallback behavior.
+**Dependencies:** Phase 1. TEMPLATED stabilization depends on the documented weather-truth and editorial-output boundary.
+
+**Scope:** Stabilize the current template/composer path around the normalized facts contract. Preserve config reload, template guardrails, language normalization, post types, headline derivation, Telegram previews, and Facebook publication behavior. Record deterministic fallback behavior.
 
 **Boundary protected:** AI availability must never be required to publish a valid deterministic draft.
 
@@ -159,7 +167,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** AI must be replaceable and configuration-driven rather than coupled to one vendor.
 
-**Dependencies:** Phase 1 and Phase 2. The AI contract must consume the controlled editorial boundary and must not displace the deterministic path.\n\n**Scope:** Define provider/model adapter and router interfaces for OpenRouter, at least two additional configured providers, OpenAI paid fallback, and optional future Ollama/self-hosted support. Define enabled state, priority, model, credential reference, timeout, retry, and fallback policy. Define structured output fields: headline, caption, generation mode, provider, model, validation state.
+**Dependencies:** Phase 1 and Phase 2. The AI contract must consume the controlled editorial boundary and must not displace the deterministic path.
+
+**Scope:** Define provider/model adapter and router interfaces for OpenRouter, at least two additional configured providers, OpenAI paid fallback, and optional future Ollama/self-hosted support. Define enabled state, priority, model, credential reference, timeout, retry, and fallback policy. Define structured output fields: headline, caption, generation mode, provider, model, validation state.
 
 **Boundary protected:** Provider choice is an operational configuration, not WeatherWatch business logic.
 
@@ -175,7 +185,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** A failed provider must degrade safely, and AI wording must not become an unverified weather claim.
 
-**Dependencies:** Phase 3. Fallback, factual validation, and provenance require the provider/model contract and structured output fields.\n\n**Scope:** Ordered fallback for timeout, rate limit, outage, quota, malformed response, invalid structured output, and configured validation failure. Validate AI output against canonical facts as strongly as practical from current parser structures. Record generation mode, provider, model, fallback level, prompt/rules version, memory references, timestamp, validation state, original draft where appropriate, human-edited result, and final approved output without secrets or unnecessary payload retention.
+**Dependencies:** Phase 3. Fallback, factual validation, and provenance require the provider/model contract and structured output fields.
+
+**Scope:** Ordered fallback for timeout, rate limit, outage, quota, malformed response, invalid structured output, and configured validation failure. Validate AI output against canonical facts as strongly as practical from current parser structures. Record generation mode, provider, model, fallback level, prompt/rules version, memory references, timestamp, validation state, original draft where appropriate, human-edited result, and final approved output without secrets or unnecessary payload retention.
 
 **Boundary protected:** Current validated facts always outrank AI output and memory.
 
@@ -191,7 +203,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** Approved examples can improve tone and wording without becoming meteorological truth.
 
-**Dependencies:** Phase 3 and Phase 4. Memory requires a controlled AI context schema and must pass through factual-boundary and provenance rules.\n\n**Scope:** Add a curated memory model/source for approved posts, human-written drafts, human corrections, tags by system/location/category/tone, and approval provenance. Retrieve a small relevant subset based on controlled metadata. Define versioning, curation, deletion, and correction behavior.
+**Dependencies:** Phase 3 and Phase 4. Memory requires a controlled AI context schema and must pass through factual-boundary and provenance rules.
+
+**Scope:** Add a curated memory model/source for approved posts, human-written drafts, human corrections, tags by system/location/category/tone, and approval provenance. Retrieve a small relevant subset based on controlled metadata. Define versioning, curation, deletion, and correction behavior.
 
 **Boundary protected:** Memory answers how WeatherWatch writes; it does not answer what weather is occurring.
 
@@ -207,7 +221,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** Operators need a clear choice between deterministic and AI-assisted editorial output.
 
-**Dependencies:** Phases 2–5. Dual-output review depends on both editorial modes, provider outcomes, validation, memory references, and provenance.\n\n**Scope:** Integrate mode selection with the current control plane and approval state. Where efficient, support AI ASSISTED and TEMPLATED previews with provider/model/status metadata. Preserve select, modify, reject, regenerate where supported, approve, text approval, and publish retry behavior.
+**Dependencies:** Phases 2–5. Dual-output review depends on both editorial modes, provider outcomes, validation, memory references, and provenance.
+
+**Scope:** Integrate mode selection with the current control plane and approval state. Where efficient, support AI ASSISTED and TEMPLATED previews with provider/model/status metadata. Preserve select, modify, reject, regenerate where supported, approve, text approval, and publish retry behavior.
 
 **Boundary protected:** Human editorial authority remains final.
 
@@ -223,7 +239,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** Existing operators already use multiple interfaces; AI must not make one surface the only control path.
 
-**Dependencies:** Phase 6. Operational surfaces should expose the already-defined mode, provider, validation, provenance, and review states without changing existing interfaces.\n\n**Scope:** Add bounded visibility/configuration: AI availability, provider/model, fallback occurrence, mode, validation state, runtime/version, publication/retry status, and safe memory/context summaries. Add provider priority/model/mode management only through existing authorization and config patterns. Add headless flags/configuration for TEMPLATED, AI ASSISTED, and automatic fallback without breaking current commands.
+**Dependencies:** Phase 6. Operational surfaces should expose the already-defined mode, provider, validation, provenance, and review states without changing existing interfaces.
+
+**Scope:** Add bounded visibility/configuration: AI availability, provider/model, fallback occurrence, mode, validation state, runtime/version, publication/retry status, and safe memory/context summaries. Add provider priority/model/mode management only through existing authorization and config patterns. Add headless flags/configuration for TEMPLATED, AI ASSISTED, and automatic fallback without breaking current commands.
 
 **Boundary protected:** Telegram is a helper/status surface, not the sole interface; local administration and headless automation remain supported.
 
@@ -239,7 +257,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** Approval, publication, retry, memory, provenance, and configuration cannot rely indefinitely on a disposable or non-durable local filesystem in a cloud runtime.
 
-**Dependencies:** Phases 1, 6, and 7. Durable-state design must account for existing approval/control-plane behavior and the interfaces that operate it.\n\n**Scope:** Classify current state as ephemeral or durable. Design a repository-compatible persistence adapter and migration strategy for approval state/history, publication state, retries, memory, provenance, provider configuration, and required scheduler state. Keep temporary screenshots/render intermediates disposable. Define backup, restore, retention, concurrency, and corruption recovery.
+**Dependencies:** Phases 1, 6, and 7. Durable-state design must account for existing approval/control-plane behavior and the interfaces that operate it.
+
+**Scope:** Classify current state as ephemeral or durable. Design a repository-compatible persistence adapter and migration strategy for approval state/history, publication state, retries, memory, provenance, provider configuration, and required scheduler state. Keep temporary screenshots/render intermediates disposable. Define backup, restore, retention, concurrency, and corruption recovery.
 
 **Boundary protected:** Persistent state must survive runtime replacement; secrets remain owner-controlled.
 
@@ -255,7 +275,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** Render may provide an additional backend/runtime, but the existing VPS is working infrastructure and must remain supported until a justified migration.
 
-**Dependencies:** Phase 8. Runtime evaluation depends on identifying which state is durable and which rendering, scheduler, listener, and persistence capabilities the target must provide.\n\n**Scope:** Evaluate long-running service, scheduler, Telegram listener, browser/rendering dependencies, filesystem semantics, health checks, startup/restart, secrets/configuration, Facebook integration, AI providers, and durable persistence. Isolate runtime adapters from core business logic. Define packaging per target.
+**Dependencies:** Phase 8. Runtime evaluation depends on identifying which state is durable and which rendering, scheduler, listener, and persistence capabilities the target must provide.
+
+**Scope:** Evaluate long-running service, scheduler, Telegram listener, browser/rendering dependencies, filesystem semantics, health checks, startup/restart, secrets/configuration, Facebook integration, AI providers, and durable persistence. Isolate runtime adapters from core business logic. Define packaging per target.
 
 **Boundary protected:** Certification environment and persistent runtime are separate; Render is not a universal requirement.
 
@@ -271,7 +293,9 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** The repository currently has no `.github/workflows` baseline. CI must be designed as a deliberate convergence/certification gate, not an editing loop.
 
-**Dependencies:** Phases 1–9 as applicable. CI tiers must be mapped to real repository commands, deterministic fixtures, runtime boundaries, and certification gates rather than assumed infrastructure.\n\n**Scope:** Define worker-loop commands for syntax, lint/type checks where applicable, focused tests, changed-area tests, and build checks. Add deliberately triggered broader convergence and certification workflows only after repository commands and disposable fixtures are known. Use review-ready, dispatch, protected-branch, release, or equivalent gates rather than unconditional expensive runs on every worker push.
+**Dependencies:** Phases 1–9 as applicable. CI tiers must be mapped to real repository commands, deterministic fixtures, runtime boundaries, and certification gates rather than assumed infrastructure.
+
+**Scope:** Define worker-loop commands for syntax, lint/type checks where applicable, focused tests, changed-area tests, and build checks. Add deliberately triggered broader convergence and certification workflows only after repository commands and disposable fixtures are known. Use review-ready, dispatch, protected-branch, release, or equivalent gates rather than unconditional expensive runs on every worker push.
 
 **Boundary protected:** Cost control must not reduce required assurance or fabricate PASS.
 
@@ -287,9 +311,13 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** The full editorial path must be proven with real WeatherWatch behavior around a disposable world.
 
-**Dependencies:** Phases 1–10 as applicable. Integrated certification requires the contracts, modes, fallback/validation, state, runtime boundaries, and verification economy to be defined.\n\n**Scope:** Construct synthetic authoritative input fixtures, disposable output/state, sandbox provider adapters, deterministic rendering inputs, fake peripheral Facebook/Telegram boundaries where allowed, and failure scenarios. Real parser, normalization, TEMPLATED/AI contract, validation, approval state machine, rendering boundary, and publication orchestration must execute.
+**Dependencies:** Phases 1–10 as applicable. Integrated certification requires the contracts, modes, fallback/validation, state, runtime boundaries, and verification economy to be defined.
 
-**Boundary protected:** Synthetic certification must execute real WeatherWatch subjects and boundaries without being misrepresented as production certification.\n\n**Acceptance:** Synthetic end-to-end evidence distinguishes facts, generated drafts, human decision, and publication simulation. Test provider outage, malformed AI output, invalid facts, render failure, approval rejection, retry, persistence restart, and rollback/recovery behavior.
+**Scope:** Construct synthetic authoritative input fixtures, disposable output/state, sandbox provider adapters, deterministic rendering inputs, fake peripheral Facebook/Telegram boundaries where allowed, and failure scenarios. Real parser, normalization, TEMPLATED/AI contract, validation, approval state machine, rendering boundary, and publication orchestration must execute.
+
+**Boundary protected:** Synthetic certification must execute real WeatherWatch subjects and boundaries without being misrepresented as production certification.
+
+**Acceptance:** Synthetic end-to-end evidence distinguishes facts, generated drafts, human decision, and publication simulation. Test provider outage, malformed AI output, invalid facts, render failure, approval rejection, retry, persistence restart, and rollback/recovery behavior.
 
 **Verification:** Full regression, synthetic end-to-end, security, recovery, and evidence review. Do not call this production certification.
 
@@ -301,9 +329,13 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Why:** Engineering certification proves the software; deployment verification proves it was installed and wired correctly in a target environment.
 
-**Dependencies:** Phases 8–11. Deployment validation requires an attributable certified revision/artifact, target runtime decisions, durable-state understanding, and available certification evidence.\n\n**Scope:** For each supported target, deploy an identified certified revision/artifact and perform bounded environment-sensitive verification. Preserve VPS runbook and add target-specific guidance only when needed. Production-specific checks remain where DNS, TLS, external providers, OS installation, network policy, backup topology, or other target behavior is material.
+**Dependencies:** Phases 8–11. Deployment validation requires an attributable certified revision/artifact, target runtime decisions, durable-state understanding, and available certification evidence.
 
-**Boundary protected:** Deployment verification must remain distinct from engineering certification, and production authority, secrets, and destructive actions remain controlled.\n\n**Acceptance:** Source revision/artifact is attributable; runtime starts; dependencies/configuration/secrets are present through approved boundaries; health succeeds; applicable routing/migrations/integration work; rollback remains available. Full engineering certification is not redundantly repeated unless risk requires it.
+**Scope:** For each supported target, deploy an identified certified revision/artifact and perform bounded environment-sensitive verification. Preserve VPS runbook and add target-specific guidance only when needed. Production-specific checks remain where DNS, TLS, external providers, OS installation, network policy, backup topology, or other target behavior is material.
+
+**Boundary protected:** Deployment verification must remain distinct from engineering certification, and production authority, secrets, and destructive actions remain controlled.
+
+**Acceptance:** Source revision/artifact is attributable; runtime starts; dependencies/configuration/secrets are present through approved boundaries; health succeeds; applicable routing/migrations/integration work; rollback remains available. Full engineering certification is not redundantly repeated unless risk requires it.
 
 **Verification:** Deployment verification, smoke checks, rollback/recovery evidence, and production certification where the environment itself is the subject.
 
