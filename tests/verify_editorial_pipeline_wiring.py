@@ -1,11 +1,25 @@
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pipelines.weather_pipeline as pipeline
 from services.ai_editorial_service import AIEditorialDraft
+
+
+def _base_job(mode):
+    return {
+        "provider": "synthetic",
+        "provider_display": "Synthetic",
+        "provider_url": "https://example.invalid",
+        "url": "https://example.invalid",
+        "raw_output_path": "output/raw.png",
+        "final_output_path": "output/final.png",
+        "source": "Forecast: PAGASA",
+        "forecast_text": "Sunny conditions.",
+        "requested_editorial_mode": mode,
+        "editorial_mode": mode,
+    }
 
 
 def main():
@@ -51,23 +65,30 @@ def main():
                 "rules_version": "test-1",
             },
         )
-        job = pipeline.run_weather_pipeline({
-            "provider": "synthetic",
-            "provider_display": "Synthetic",
-            "provider_url": "https://example.invalid",
-            "url": "https://example.invalid",
-            "raw_output_path": "output/raw.png",
-            "final_output_path": "output/final.png",
-            "source": "Forecast: PAGASA",
-            "forecast_text": "Sunny conditions.",
-            "requested_editorial_mode": "ai_assisted",
-            "editorial_mode": "ai_assisted",
-        })
+        job = pipeline.run_weather_pipeline(_base_job("ai_assisted"))
         assert job["editorial_mode"] == "ai_assisted"
         assert job["headline"] == "AI headline"
         assert job["captions"]["facebook"] == "AI caption"
         assert job["ai_provider"] == "synthetic-provider"
+        assert job["ai_fallback_level"] == 0
         assert job["editorial_provenance"]["rules_version"] == "test-1"
+
+        pipeline.generate_ai_editorial = lambda facts: (_ for _ in ()).throw(
+            RuntimeError("provider chain unavailable")
+        )
+        automatic = pipeline.run_weather_pipeline(_base_job("automatic"))
+        assert automatic["editorial_mode"] == "templated"
+        assert automatic["ai_status"] == "fallback/degraded"
+        assert automatic["headline"] != "AI headline"
+        assert automatic["captions"]["facebook"] == "templated caption"
+
+        try:
+            pipeline.run_weather_pipeline(_base_job("ai_assisted"))
+        except RuntimeError as error:
+            assert "AI ASSISTED unavailable/degraded" in str(error)
+            assert "TEMPLATED remains available" in str(error)
+        else:
+            raise AssertionError("Explicit ai_assisted failure must not produce TEMPLATED output")
     finally:
         pipeline.run_capture_job = original["capture"]
         pipeline.run_image_job = original["image"]
