@@ -33,6 +33,9 @@ def main():
     page = FakePage()
     prepare_panahon_page(page, DECISION)
     assert [event[0] for event in page.events] == ["wait", "apply"]
+    readiness = page.events[0][1]
+    assert "window.map.getSize" in readiness
+    assert "window.map.getView().getSize" not in readiness
     values = page.events[-1][2]
     assert values == {"latitude": 10.5, "longitude": 123.75, "zoom": 7}
     assert "setCenter" in page.events[-1][1]
@@ -43,6 +46,8 @@ def main():
         {**DECISION, "center_lat": None},
         {**DECISION, "pan_x": "bad"},
         {**DECISION, "center_lat": 100},
+        {**DECISION, "center_lat": 90},
+        {**DECISION, "center_lon": 181},
     ):
         try:
             prepare_panahon_page(FakePage(), invalid)
@@ -72,6 +77,29 @@ def main():
         assert calls and calls[0]["framing_decision"] is decision
         assert decision["provider_framing_applied"] is True
         assert decision["provider_framing_status"] == "applied"
+    finally:
+        capture_service.capture_panahon_page = original
+
+    original = capture_service.capture_panahon_page
+    capture_service.capture_panahon_page = lambda **kwargs: (_ for _ in ()).throw(
+        PanahonFramingError("map was not ready")
+    )
+    try:
+        decision = dict(DECISION)
+        try:
+            capture_service.run_capture_job({
+                "provider": "panahon",
+                "url": "https://www.panahon.gov.ph/",
+                "raw_output_path": "output/panahon.png",
+                "framing_decision": decision,
+            })
+        except PanahonFramingError:
+            pass
+        else:
+            raise AssertionError("PANaHON framing failure must propagate")
+        assert decision["provider_framing_applied"] is False
+        assert decision["provider_framing_status"] == "degraded"
+        assert decision["provider_framing_reason"] == "map was not ready"
     finally:
         capture_service.capture_panahon_page = original
 

@@ -10,6 +10,9 @@ class PanahonFramingError(RuntimeError):
     """PANaHON did not expose a safely controllable map view."""
 
 
+WEB_MERCATOR_MAX_LATITUDE = 85.05112878
+
+
 def _framing_coordinates(framing_decision):
     if not framing_decision or not framing_decision.get("enabled"):
         raise PanahonFramingError("PANaHON framing decision is unavailable")
@@ -26,7 +29,10 @@ def _framing_coordinates(framing_decision):
 
     latitude = values["center_lat"] + values["pan_y"]
     longitude = values["center_lon"] + values["pan_x"]
-    if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+    if (
+        not -WEB_MERCATOR_MAX_LATITUDE <= latitude <= WEB_MERCATOR_MAX_LATITUDE
+        or not -180 <= longitude <= 180
+    ):
         raise PanahonFramingError("PANaHON framing coordinates are out of range")
     if values["zoom"] <= 0:
         raise PanahonFramingError("PANaHON framing zoom is invalid")
@@ -42,17 +48,24 @@ def prepare_panahon_page(page, framing_decision):
     """
     latitude, longitude, zoom = _framing_coordinates(framing_decision)
     page.wait_for_function(
-        "window.map && window.map.getView && window.map.getView().getSize()",
+        "window.map && window.map.getView && window.map.getView() "
+        "&& window.map.getSize && window.map.getSize()",
         timeout=30000,
     )
     page.evaluate(
         """
         ({latitude, longitude, zoom}) => {
             const view = window.map.getView();
-            const x = longitude * 20037508.34 / 180;
-            const y = Math.log(Math.tan((90 + latitude) * Math.PI / 360))
-                / (Math.PI / 180) * 20037508.34 / 180;
-            view.setCenter([x, y]);
+            let center;
+            if (window.ol && window.ol.proj && window.ol.proj.fromLonLat) {
+                center = window.ol.proj.fromLonLat([longitude, latitude]);
+            } else {
+                const x = longitude * 20037508.34 / 180;
+                const y = Math.log(Math.tan((90 + latitude) * Math.PI / 360))
+                    / (Math.PI / 180) * 20037508.34 / 180;
+                center = [x, y];
+            }
+            view.setCenter(center);
             view.setZoom(zoom);
             window.map.updateSize();
         }
