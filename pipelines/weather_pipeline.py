@@ -12,6 +12,7 @@ from services.content_service import (
 )
 
 from storage.approval_store import create_current_job
+from services.editorial_generation_service import generate_ai_editorial
 
 
 def run_weather_pipeline(job):
@@ -25,6 +26,28 @@ def run_weather_pipeline(job):
     )
 
     job["content_type"] = job["forecast"]["weather_type"]
+
+    if job.get("requested_editorial_mode") != "templated":
+        try:
+            draft, provenance = generate_ai_editorial(job["forecast"]["structured"])
+            job["editorial_mode"] = "ai_assisted"
+            job["ai_status"] = "available"
+            job["ai_provider"] = provenance["provider"]
+            job["ai_model"] = provenance["model"]
+            job["ai_fallback_level"] = provenance["fallback_level"]
+            job["ai_validation_state"] = provenance["validation_state"]
+            job["editorial_provenance"] = provenance
+            job["_ai_headline"] = draft.headline
+            job["_ai_caption"] = draft.caption
+        except Exception as error:
+            job["editorial_mode"] = "templated"
+            job["ai_status"] = "fallback/degraded"
+            job["ai_validation_state"] = "not_run"
+            job["editorial_provenance"] = {
+                "mode": "templated",
+                "status": "fallback/degraded",
+                "error": str(error),
+            }
     job["framing_decision"] = determine_map_framing(
         forecast_data=job["forecast"]["structured"],
         parsed_forecast_text=job["forecast"]["raw_text"],
@@ -43,10 +66,19 @@ def run_weather_pipeline(job):
 
     # Generate the GPX/graphic headline BEFORE rendering the image.
     job["headline"] = build_graphic_headline(job)
+    if job.get("_ai_headline"):
+        job["headline"] = job["_ai_headline"]
 
     run_image_job(job)
 
     job["captions"] = build_captions(job)
+    if job.get("_ai_caption"):
+        job["captions"] = {
+            **job["captions"],
+            "facebook": job["_ai_caption"],
+            "telegram": job["_ai_caption"],
+            "instagram": job["_ai_caption"],
+        }
 
     current_job = create_current_job(job)
 
