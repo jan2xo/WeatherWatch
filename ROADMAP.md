@@ -107,6 +107,22 @@ P10 deployment verification and Render evaluation
 
 Memory may be prototyped after the AI contract, but it must never precede a controlled context schema or bypass factual validation.
 
+## Current Execution Status
+
+This roadmap is actively executing through bounded implementation PRs.
+
+- P0 — COMPLETE: governance and roadmap acceptance.
+- P1 — COMPLETE: architecture truth-check and editorial domain boundary.
+- P2 — COMPLETE: existing TEMPLATED composer capability verified and preserved.
+- P3 — COMPLETE: provider-neutral AI editorial contract.
+- P4 — COMPLETE: safe fallback, conservative measurable-claim validation, and provenance.
+- P5 — COMPLETE: curated approved-memory boundary and bounded retrieval.
+- P6 — COMPLETE: operational mode metadata/status integration across generation, approval state, Telegram status, dashboard health/current-job visibility, and existing headless selection.
+- P7 — NEXT: bounded Telegram/dashboard/CLI operational configuration refinements, only where remaining integration is evidenced.
+- P8–P12 — NOT STARTED: durable state, Render evaluation, CI economy, integrated certification, and deployment/runtime verification.
+
+Production deployment and production certification have not occurred. TEMPLATED remains the deterministic fallback; AI output is not meteorological authority.
+
 ## Roadmap phases
 
 ### Phase 0 — Governance and repository alignment

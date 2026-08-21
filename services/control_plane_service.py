@@ -50,9 +50,35 @@ def require_current_job(allowed_statuses=None):
     return job
 
 
-def generate_update():
+def generate_update(requested_editorial_mode=None):
     with _CONTROL_LOCK:
-        return WeatherWatch().update()
+        return WeatherWatch().update(requested_editorial_mode)
+
+
+def get_editorial_status():
+    job = get_current_job()
+    if not job:
+        return {
+            "requested_editorial_mode": "templated",
+            "editorial_mode": "templated",
+            "ai_status": "not_requested",
+            "ai_provider": None,
+            "ai_model": None,
+            "ai_fallback_level": None,
+            "ai_validation_state": "not_run",
+            "editorial_provenance": None,
+        }
+
+    return {
+        "requested_editorial_mode": job.get("requested_editorial_mode", "templated"),
+        "editorial_mode": job.get("editorial_mode", "templated"),
+        "ai_status": job.get("ai_status", "not_requested"),
+        "ai_provider": job.get("ai_provider"),
+        "ai_model": job.get("ai_model"),
+        "ai_fallback_level": job.get("ai_fallback_level"),
+        "ai_validation_state": job.get("ai_validation_state", "not_run"),
+        "editorial_provenance": job.get("editorial_provenance"),
+    }
 
 
 def approve_current_job(post_type_override=None):
