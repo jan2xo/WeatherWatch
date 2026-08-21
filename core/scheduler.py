@@ -15,6 +15,11 @@ def run_weather_update_job(
     update_callback,
     pending_job_policy=None,
 ):
+    requested_provider = job_config.get("provider", "default")
+    print(
+        f"Scheduled job starting: {job_config['id']} "
+        f"(provider={requested_provider})"
+    )
     current_job = get_current_job()
     policy = pending_job_policy or {}
 
@@ -45,7 +50,9 @@ def run_weather_update_job(
                 "reason": "current_job_exists",
             }
 
-    return update_callback()
+    if requested_provider == "default":
+        return update_callback()
+    return update_callback(requested_provider=requested_provider)
 
 
 def register_scheduler_jobs(config, update_callback, scheduler_instance=None):
@@ -113,6 +120,11 @@ def get_scheduler_runtime_status():
         next_run_time = getattr(job, "next_run_time", None)
         jobs.append({
             "id": job.id,
+            "provider": (
+                (getattr(job, "args", None) or [{}])[0].get("provider", "default")
+                if getattr(job, "args", None)
+                else "default"
+            ),
             "next_run": (
                 next_run_time.isoformat(timespec="minutes")
                 if next_run_time

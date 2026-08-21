@@ -54,3 +54,5 @@ jobs:
           python tests/verify_approval_state_safety.py
           python tests/verify_runtime_compatibility.py
           python tests/verify_dashboard_control_plane.py
+          python tests/verify_scheduler_config.py
+          python tests/verify_scheduler_provider_selection.py

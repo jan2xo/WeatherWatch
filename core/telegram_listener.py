@@ -764,7 +764,8 @@ def format_scheduler_status(status):
     runtime = get_scheduler_runtime_status()
     enabled_jobs = status.get("enabled_jobs") or []
     configured = ", ".join(
-        f"{job['id']}@{job['time']}" for job in enabled_jobs
+        f"{job['id']}@{job['time']} provider={job.get('provider', 'default')}"
+        for job in enabled_jobs
     ) or "None"
     next_runs = ", ".join(
         f"{job['id']}={job['next_run'] or 'pending'}"

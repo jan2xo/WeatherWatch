@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from plugins.sources.registry import KNOWN_PROVIDERS, PROVIDERS
+
 
 CONFIG_PATH = Path("config/scheduler.json")
 BACKUP_DIR = Path("data/scheduler_backups")
@@ -140,8 +142,18 @@ def validate_scheduler_config(config):
             raise ValueError(
                 f"{path}.action is unsupported: {job['action']!r}"
             )
-        if "provider" in job and not isinstance(job["provider"], str):
-            raise ValueError(f"{path}.provider must be a string.")
+        provider = job.get("provider", "default")
+        if not isinstance(provider, str) or not provider.strip():
+            raise ValueError(f"{path}.provider must be a non-empty string.")
+        provider = provider.strip().lower()
+        if provider != "default" and provider not in KNOWN_PROVIDERS:
+            raise ValueError(f"{path}.provider is unknown: {provider!r}")
+        if provider != "default" and not any(
+            item["name"] == provider for item in PROVIDERS
+        ):
+            raise ValueError(
+                f"{path}.provider is disabled or unavailable: {provider!r}"
+            )
         if (
             "skip_if_pending_job_exists" in job
             and not isinstance(job["skip_if_pending_job_exists"], bool)
@@ -276,6 +288,7 @@ def get_scheduler_status():
                 "id": job.get("id"),
                 "time": job.get("time"),
                 "action": job.get("action"),
+                "provider": job.get("provider", "default"),
             }
             for job in enabled_jobs
         ],

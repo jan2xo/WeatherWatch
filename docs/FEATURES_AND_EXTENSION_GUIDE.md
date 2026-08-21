@@ -161,8 +161,12 @@ Manages `config/scheduler.json`:
 
 Supported action: `weather_update`.
 
-The `provider` field is stored for future provider selection. Current update
-generation still uses the normal provider registry.
+The scheduler `provider` field is operational. `default` preserves the normal
+active-provider registry ordering and fallback behavior. A specific enabled
+provider name, such as `windy`, limits that scheduled attempt to the selected
+provider. Unknown, disabled, or unavailable providers are rejected during
+configuration validation; an explicit provider failure is not silently
+substituted with another provider.
 
 ### `core/telegram_listener.py`
 

@@ -1,4 +1,4 @@
-from plugins.sources.registry import get_providers
+from plugins.sources.registry import get_providers, resolve_providers
 from pipelines.weather_pipeline import run_weather_pipeline
 from services.pagasa_service import fetch_daily_forecast
 from services.editorial_mode_service import EditorialMode
@@ -8,7 +8,7 @@ from storage.approval_store import get_current_job
 
 class WeatherWatch:
 
-    def update(self, requested_editorial_mode=None):
+    def update(self, requested_editorial_mode=None, requested_provider=None):
         requested_mode = requested_editorial_mode or get_optional_env(
             "WEATHERWATCH_EDITORIAL_MODE"
         ) or EditorialMode.TEMPLATED.value
@@ -35,7 +35,7 @@ class WeatherWatch:
                 "current_job": current_job,
             }
 
-        providers = get_providers()
+        providers = resolve_providers(requested_provider)
         last_error = None
 
         for provider in providers:
@@ -74,7 +74,10 @@ class WeatherWatch:
 
             except Exception as error:
                 last_error = error
-                print(f"Provider failed: {provider['name']} → {error}")
+                print(
+                    f"Provider failed: {provider['name']} "
+                    f"(requested={requested_provider or 'default'}) → {error}"
+                )
 
         if last_error:
             raise last_error
