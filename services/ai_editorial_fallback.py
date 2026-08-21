@@ -56,6 +56,28 @@ def _normalize_claim(value: str) -> str:
     return re.sub(r"\s+", "", value.casefold())
 
 
+def _canonical_numeric_claims(value: Any, key: str = ""):
+    if isinstance(value, Mapping):
+        for nested_key, nested_value in value.items():
+            yield from _canonical_numeric_claims(nested_value, str(nested_key))
+    elif isinstance(value, (list, tuple, set)):
+        for nested in value:
+            yield from _canonical_numeric_claims(nested, key)
+    elif isinstance(value, (int, float)) and not isinstance(value, bool):
+        key_units = {
+            "kmh": "km/h",
+            "km/h": "km/h",
+            "mm": "mm",
+            "c": "°C",
+            "percent": "%",
+        }
+        normalized_key = key.casefold().replace("_", "")
+        for marker, unit in key_units.items():
+            if marker in normalized_key:
+                yield f"{value:g} {unit}"
+                break
+
+
 def validate_factual_claims(
     draft: AIEditorialDraft,
     canonical_facts: Mapping[str, Any],
@@ -75,10 +97,14 @@ def validate_factual_claims(
         )
 
     canonical_claims = {
-        _normalize_claim(match.group(0))
+        _normalize_claim(claim)
         for value in _walk_values(canonical_facts)
-        for match in NUMERIC_CLAIM_PATTERN.finditer(value)
+        for claim in NUMERIC_CLAIM_PATTERN.findall(value)
     }
+    canonical_claims.update(
+        _normalize_claim(claim)
+        for claim in _canonical_numeric_claims(canonical_facts)
+    )
     output_text = f"{draft.headline}\n{draft.caption}"
     output_claims = tuple(
         match.group(0)
