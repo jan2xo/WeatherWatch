@@ -1,7 +1,9 @@
 import json
 import os
+import socket
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -67,6 +69,141 @@ def test_external_repository_round_trip_and_namespace():
     assert second.load(lambda: {"missing": True}) == {"missing": True}
 
 
+class FakeRespServer:
+    def __init__(self, *, password="secret", error=None):
+        self.password = password
+        self.error = error
+        self.commands = []
+        self.values = {2: {"weatherwatch:state": json.dumps({"status": "ready"})}}
+        self.listener = socket.socket()
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen(1)
+        self.port = self.listener.getsockname()[1]
+        self.thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self):
+        self.thread.start()
+
+    def close(self):
+        self.listener.close()
+        self.thread.join(timeout=2)
+
+    @staticmethod
+    def _read_exact(connection, size):
+        data = b""
+        while len(data) < size:
+            chunk = connection.recv(size - len(data))
+            if not chunk:
+                raise RuntimeError("fake RESP client disconnected")
+            data += chunk
+        return data
+
+    def _readline(self, connection):
+        data = b""
+        while not data.endswith(b"\r\n"):
+            data += self._read_exact(connection, 1)
+        return data[:-2]
+
+    def _command(self, connection):
+        assert self._read_exact(connection, 1) == b"*"
+        count = int(self._readline(connection))
+        parts = []
+        for _ in range(count):
+            assert self._read_exact(connection, 1) == b"$"
+            size = int(self._readline(connection))
+            parts.append(self._read_exact(connection, size).decode())
+            assert self._read_exact(connection, 2) == b"\r\n"
+        return parts
+
+    @staticmethod
+    def _send(connection, value):
+        connection.sendall(value.encode() + b"\r\n")
+
+    def _run(self):
+        try:
+            connection, _ = self.listener.accept()
+        except OSError:
+            return
+        with connection:
+            database = 0
+            authenticated = False
+            try:
+                while True:
+                    parts = self._command(connection)
+                    self.commands.append(parts)
+                    command = parts[0].upper()
+                    if command == "AUTH":
+                        authenticated = parts[-1] == self.password
+                        self._send(connection, "+OK" if authenticated else "-ERR invalid password")
+                    elif self.error:
+                        self._send(connection, self.error)
+                    elif command == "SELECT":
+                        database = int(parts[1])
+                        self._send(connection, "+OK")
+                    elif command == "GET":
+                        if self.password and not authenticated:
+                            self._send(connection, "-NOAUTH Authentication required")
+                        else:
+                            value = self.values.get(database, {}).get(parts[1])
+                            if value is None:
+                                self._send(connection, "$-1")
+                            else:
+                                encoded = value.encode()
+                                self._send(connection, f"${len(encoded)}\r\n{value}")
+                    elif command == "SET":
+                        self.values.setdefault(database, {})[parts[1]] = parts[2]
+                        self._send(connection, "+OK")
+                    else:
+                        self._send(connection, "-ERR unsupported")
+            except (RuntimeError, OSError):
+                pass
+
+
+def test_real_resp_session_boundary():
+    server = FakeRespServer()
+    server.start()
+    repository = RedisStateRepository(
+        f"redis://:{'secret'}@127.0.0.1:{server.port}/2",
+        "weatherwatch:state",
+    )
+    try:
+        assert repository.load(dict)["status"] == "ready"
+        assert [item[0] for item in server.commands] == ["AUTH", "SELECT", "GET"]
+    finally:
+        server.close()
+
+    server = FakeRespServer()
+    server.start()
+    repository = RedisStateRepository(
+        f"redis://:{'secret'}@127.0.0.1:{server.port}/2",
+        "weatherwatch:state",
+    )
+    try:
+        repository.save({"status": "saved"})
+        assert [item[0] for item in server.commands] == ["AUTH", "SELECT", "SET"]
+        assert server.values[2]["weatherwatch:state"] == '{"status":"saved"}'
+    finally:
+        server.close()
+
+
+def test_resp_error_does_not_leak_connection_details():
+    server = FakeRespServer(error="-ERR backend unavailable")
+    server.start()
+    url = f"redis://:{'secret'}@127.0.0.1:{server.port}/2"
+    repository = RedisStateRepository(url, "weatherwatch:state")
+    try:
+        try:
+            repository.load(dict)
+        except RuntimeError as error:
+            message = str(error)
+            assert "secret" not in message
+            assert url not in message
+        else:
+            raise AssertionError("RESP error must be mapped")
+    finally:
+        server.close()
+
+
 def test_backend_selection_is_explicit():
     original = os.environ.get("WEATHERWATCH_STATE_BACKEND")
     try:
@@ -114,6 +251,8 @@ if __name__ == "__main__":
     test_missing_and_corrupt_state_are_distinct()
     test_atomic_save_keeps_valid_json()
     test_external_repository_round_trip_and_namespace()
+    test_real_resp_session_boundary()
+    test_resp_error_does_not_leak_connection_details()
     test_backend_selection_is_explicit()
     test_redis_backend_requires_url()
     print("state repository verification ok")

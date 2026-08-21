@@ -52,6 +52,7 @@ jobs:
           python tests/verify_telegram_ai_status.py
           python tests/verify_state_repository.py
           python tests/verify_facebook_token_state_repository.py
+          python tests/verify_state_backend_health.py
           python tests/verify_approval_state_safety.py
           python tests/verify_runtime_compatibility.py
           python tests/verify_dashboard_control_plane.py

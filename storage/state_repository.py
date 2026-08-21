@@ -94,23 +94,23 @@ class RedisStateRepository(StateRepository):
         self.key = key
         self.timeout_seconds = timeout_seconds
 
-    def _request(self, *parts):
+    def _request(self, connection, *parts):
         payload = b"*" + str(len(parts)).encode() + b"\r\n"
         for part in parts:
             value = str(part).encode()
             payload += b"$" + str(len(value)).encode() + b"\r\n" + value + b"\r\n"
+        connection.sendall(payload)
+        return self._read_response(connection)
+
+    def _connect(self):
         raw_socket = socket.create_connection(
             (self.host, self.port), timeout=self.timeout_seconds
         )
-        connection = (
-            ssl.create_default_context().wrap_socket(raw_socket, server_hostname=self.host)
-            if self.tls else raw_socket
-        )
-        try:
-            connection.sendall(payload)
-            return self._read_response(connection)
-        finally:
-            connection.close()
+        if self.tls:
+            return ssl.create_default_context().wrap_socket(
+                raw_socket, server_hostname=self.host
+            )
+        return raw_socket
 
     @staticmethod
     def _read_response(connection):
@@ -141,12 +141,16 @@ class RedisStateRepository(StateRepository):
         raise RuntimeError("External state returned an unsupported response.")
 
     def _command(self, *parts):
-        if self.password:
-            auth = ("AUTH", self.username or "default", self.password)
-            self._request(*auth)
-        if self.database:
-            self._request("SELECT", self.database)
-        return self._request(*parts)
+        connection = self._connect()
+        try:
+            if self.password:
+                auth = ("AUTH", self.username or "default", self.password)
+                self._request(connection, *auth)
+            if self.database:
+                self._request(connection, "SELECT", self.database)
+            return self._request(connection, *parts)
+        finally:
+            connection.close()
 
     def load(self, default_factory):
         try:
@@ -196,6 +200,22 @@ def get_state_repository(path, *, state_key):
 
 def get_state_backend_status():
     backend = get_state_backend_name()
+    if backend == "redis":
+        url = os.getenv(REDIS_URL_ENV)
+        if not url:
+            return {
+                "state_backend": "redis",
+                "state_backend_status": "degraded",
+                "state_backend_error": f"{REDIS_URL_ENV} is not configured.",
+            }
+        try:
+            RedisStateRepository(url, f"{STATE_NAMESPACE}:health")
+        except ValueError:
+            return {
+                "state_backend": "redis",
+                "state_backend_status": "degraded",
+                "state_backend_error": "Redis configuration is invalid.",
+            }
     return {
         "state_backend": backend,
         "state_backend_status": "ready" if backend == "filesystem" else "configured",

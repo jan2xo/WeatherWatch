@@ -360,10 +360,7 @@ def build_health_payload():
         scheduler_status.get("validation_status") == "valid"
     )
     windy_health = windy_status.get("validation_status") == "valid"
-    durable_state_available = (
-        state_files.get("approval_state", False)
-        or backend_status.get("state_backend") == "redis"
-    )
+    durable_state_available = backend_status.get("state_backend_status") == "ready"
 
     return {
         "ok": bool(
