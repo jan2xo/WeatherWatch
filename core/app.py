@@ -1,12 +1,30 @@
 from plugins.sources.registry import get_providers
 from pipelines.weather_pipeline import run_weather_pipeline
 from services.pagasa_service import fetch_daily_forecast
+from services.editorial_mode_service import (
+    EditorialMode,
+    select_editorial_mode,
+)
+from config.settings import get_optional_env
 from storage.approval_store import get_current_job
 
 
 class WeatherWatch:
 
-    def update(self):
+    def update(self, requested_editorial_mode=None):
+        requested_mode = requested_editorial_mode or get_optional_env(
+            "WEATHERWATCH_EDITORIAL_MODE"
+        ) or EditorialMode.TEMPLATED.value
+        resolved_mode = select_editorial_mode(
+            requested_mode,
+            ai_available=False,
+        )
+        ai_status = (
+            "unavailable/degraded"
+            if resolved_mode is EditorialMode.TEMPLATED
+            and requested_mode != EditorialMode.TEMPLATED.value
+            else "not_requested"
+        )
         current_job = get_current_job()
 
         if current_job:
@@ -39,6 +57,17 @@ class WeatherWatch:
                                     f"FORECAST: PAGASA | pagasa.dost.gov.ph"
                                 ),
                         "forecast_text": fetch_daily_forecast(),
+                        "requested_editorial_mode": str(requested_mode),
+                        "editorial_mode": resolved_mode.value,
+                        "ai_status": ai_status,
+                        "ai_provider": None,
+                        "ai_model": None,
+                        "ai_fallback_level": None,
+                        "ai_validation_state": "not_run",
+                        "editorial_provenance": {
+                            "mode": resolved_mode.value,
+                            "status": ai_status,
+                        },
                     }
 
                 current_job = run_weather_pipeline(job)
