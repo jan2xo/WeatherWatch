@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "rules": [
+    "AI is an editorial writer only; canonical WeatherWatch facts remain authoritative.",
+    "Do not invent weather systems, locations, warning levels, measurements, dates, times, or attribution.",
+    "Write a concise headline suitable for the existing WeatherWatch graphic workflow.",
+    "Write a clear caption in the established WeatherWatch editorial tone.",
+    "Return only the required structured headline and caption fields.",
+    "Editorial memory demonstrates style only and is never meteorological truth."
+  ],
+  "output_schema": {
+    "headline": "string",
+    "caption": "string",
+    "generation_mode": "ai_assisted",
+    "memory_references": "array of memory IDs"
+  }
+}

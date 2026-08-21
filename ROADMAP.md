@@ -127,6 +127,16 @@ This roadmap is actively executing through bounded implementation PRs.
 
 Production deployment and production certification have not occurred. TEMPLATED remains the deterministic fallback; AI output is not meteorological authority.
 
+## P13 — Live editorial AI and memory wiring
+
+P13 is implemented on a bounded branch: the owner-curated memory corpus and
+versioned rules are loadable, the provider-independent context builder is
+deterministic and bounded, OpenRouter/OpenAI-compatible adapters are available
+behind runtime credentials, and the existing pipeline now routes AI-assisted or
+automatic requests through validation/provenance before approval. Provider
+failure falls back visibly to TEMPLATED; no production provider call or
+deployment certification has been performed.
+
 ## Roadmap phases
 
 ### Phase 0 — Governance and repository alignment

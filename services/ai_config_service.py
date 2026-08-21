@@ -62,6 +62,12 @@ def validate_ai_config(config):
         if enabled and not model.strip():
             raise ValueError("Enabled AI providers require a selected model.")
 
+        credential_reference = provider.get("credential_reference", "")
+        if not isinstance(credential_reference, str) or (
+            credential_reference and not credential_reference.replace("_", "").isalnum()
+        ):
+            raise ValueError("AI provider credential_reference must be a safe environment name.")
+
         timeout = provider.get("timeout_seconds")
         if (
             not isinstance(timeout, int)
@@ -123,3 +129,12 @@ def get_ai_config_status(path=CONFIG_PATH):
             "last_validation_error": str(error),
             "providers": [],
         }
+
+
+def get_enabled_provider_configs(path=CONFIG_PATH):
+    config = get_ai_config(path)
+    return tuple(
+        provider
+        for provider in sorted(config["providers"], key=lambda item: item["priority"])
+        if provider["enabled"]
+    )

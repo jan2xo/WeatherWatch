@@ -151,14 +151,18 @@ def generate_with_fallback(
     attempts = []
 
     for index, provider in enumerate(router.providers):
+        fallback_level = getattr(provider, "fallback_level", index)
         try:
             payload = provider.generate(context)
             draft = validate_editorial_output(
                 payload,
                 provider=provider.name,
                 model=str(payload.get("model", "")),
-                fallback_level=index,
+                fallback_level=fallback_level,
             )
+            selected_memory = set(context.get("memory_references", ()))
+            if any(reference not in selected_memory for reference in draft.memory_references):
+                raise AIEditorialError("AI output referenced memory outside the selected context.")
             facts = context.get("weather_facts", {})
             factual = factual_validator(draft, facts)
             if factual.state != "valid":
@@ -168,10 +172,12 @@ def generate_with_fallback(
                 generation_mode=draft.generation_mode,
                 provider=draft.provider,
                 model=draft.model,
-                fallback_level=index,
+                fallback_level=fallback_level,
                 validation_state=factual.state,
                 validation_reasons=factual.reasons,
-                memory_references=draft.memory_references,
+                memory_references=draft.memory_references or tuple(
+                    context.get("memory_references", ())
+                ),
             )
             return draft, provenance
         except Exception as error:

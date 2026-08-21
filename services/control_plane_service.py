@@ -69,13 +69,14 @@ def get_editorial_status():
             "editorial_provenance": None,
         }
 
+    fallback_level = job.get("ai_fallback_level")
     return {
         "requested_editorial_mode": job.get("requested_editorial_mode", "templated"),
         "editorial_mode": job.get("editorial_mode", "templated"),
         "ai_status": job.get("ai_status", "not_requested"),
         "ai_provider": job.get("ai_provider"),
         "ai_model": job.get("ai_model"),
-        "ai_fallback_level": job.get("ai_fallback_level"),
+        "ai_fallback_level": str(fallback_level) if fallback_level is not None else None,
         "ai_validation_state": job.get("ai_validation_state", "not_run"),
         "editorial_provenance": job.get("editorial_provenance"),
     }

@@ -1,10 +1,7 @@
 from plugins.sources.registry import get_providers
 from pipelines.weather_pipeline import run_weather_pipeline
 from services.pagasa_service import fetch_daily_forecast
-from services.editorial_mode_service import (
-    EditorialMode,
-    select_editorial_mode,
-)
+from services.editorial_mode_service import EditorialMode
 from config.settings import get_optional_env
 from storage.approval_store import get_current_job
 
@@ -15,16 +12,16 @@ class WeatherWatch:
         requested_mode = requested_editorial_mode or get_optional_env(
             "WEATHERWATCH_EDITORIAL_MODE"
         ) or EditorialMode.TEMPLATED.value
-        resolved_mode = select_editorial_mode(
-            requested_mode,
-            ai_available=False,
+        try:
+            requested_enum = EditorialMode(requested_mode)
+        except ValueError as error:
+            raise ValueError(f"Unsupported editorial mode: {requested_mode!r}") from error
+        resolved_mode = (
+            EditorialMode.TEMPLATED
+            if requested_enum is EditorialMode.TEMPLATED
+            else requested_enum
         )
-        ai_status = (
-            "unavailable/degraded"
-            if resolved_mode is EditorialMode.TEMPLATED
-            and requested_mode != EditorialMode.TEMPLATED.value
-            else "not_requested"
-        )
+        ai_status = "not_requested" if requested_enum is EditorialMode.TEMPLATED else "pending"
         current_job = get_current_job()
 
         if current_job:

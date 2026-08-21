@@ -45,6 +45,7 @@ from services.facebook_service import (
 from services.control_plane_service import (
     approve_current_job as control_approve_current_job,
     generate_update,
+    get_editorial_status,
     reject_current_job as control_reject_current_job,
     retry_publish as control_retry_publish,
     set_post_type as control_set_post_type,
@@ -106,6 +107,8 @@ from services.windy_layer_service import (
     windy_json_preview,
 )
 from services.ai_config_service import get_ai_config_status
+from services.editorial_context_service import load_editorial_rules
+from services.editorial_memory_service import load_editorial_memory
 from config.settings import (
     get_required_env,
     parse_env_id_list,
@@ -1743,8 +1746,13 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ))
 
 
+def format_ai_fallback_level(level):
+    return "N/A" if level is None else str(level)
+
+
 async def ai_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status = get_ai_config_status()
+    editorial = get_editorial_status()
     providers = status.get("providers") or []
     provider_lines = "\n".join(
         f"- {provider['name']}: {'enabled' if provider['enabled'] else 'disabled'}; "
@@ -1757,9 +1765,32 @@ async def ai_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Validation: {status.get('validation_status')}\n"
         f"Fallback enabled: {status.get('fallback_enabled')}\n"
         f"Max attempts: {status.get('max_attempts')}\n"
+        f"Resolved mode: {editorial.get('editorial_mode')}\n"
+        f"Used provider/model: {editorial.get('ai_provider') or 'N/A'} / {editorial.get('ai_model') or 'N/A'}\n"
+        f"Fallback level: {format_ai_fallback_level(editorial.get('ai_fallback_level'))}\n"
+        f"Validation state: {editorial.get('ai_validation_state')}\n"
+        f"Rules version: {(editorial.get('editorial_provenance') or {}).get('rules_version', 'N/A')}\n"
+        f"Memory references: {len((editorial.get('editorial_provenance') or {}).get('memory_references', []))}\n"
         f"Providers:\n{provider_lines}\n\n"
         "Credentials and provider payloads are not displayed."
     )
+
+
+async def memory_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        corpus = load_editorial_memory()
+        approved = sum(1 for item in corpus if item.approved)
+        rules = load_editorial_rules()
+        message = (
+            "Editorial Memory\n\n"
+            f"Corpus items: {len(corpus)}\n"
+            f"Approved items: {approved}\n"
+            f"Rules version: {rules['version']}\n"
+            "Memory is editorial precedent only; it is not weather truth."
+        )
+    except Exception as error:
+        message = f"Editorial memory unavailable/degraded: {error}"
+    await update.message.reply_text(message)
 
 
 async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2150,6 +2181,7 @@ def build_telegram_app():
     app.add_handler(CommandHandler("manual", admin_command(manual_command)))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("ai_status", admin_command(ai_status_command)))
+    app.add_handler(CommandHandler("memory_status", admin_command(memory_status_command)))
     app.add_handler(CommandHandler("update", admin_command(update_command)))
     app.add_handler(CommandHandler("approve", admin_command(approve_command)))
     app.add_handler(CommandHandler("text_approve", admin_command(text_approve_command)))

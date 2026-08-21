@@ -2,18 +2,12 @@ name: WeatherWatch convergence
 
 on:
   workflow_dispatch:
+  push:
   pull_request:
-    types: [ready_for_review]
-    paths:
-      - "**.py"
-      - "config/**"
-      - "requirements.txt"
-      - "tests/**"
-      - ".github/workflows/convergence.yml"
 
 concurrency:
   group: weatherwatch-convergence-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deterministic-runtime-convergence:
@@ -50,9 +44,13 @@ jobs:
           python tests/verify_editorial_mode.py
           python tests/verify_ai_editorial_contract.py
           python tests/verify_ai_editorial_fallback.py
+          python tests/verify_editorial_context.py
+          python tests/verify_provider_adapters.py
+          python tests/verify_live_editorial_generation.py
+          python tests/verify_editorial_pipeline_wiring.py
+          python tests/verify_editorial_operational_integration.py
+          python tests/verify_telegram_ai_status.py
           python tests/verify_state_repository.py
           python tests/verify_approval_state_safety.py
           python tests/verify_runtime_compatibility.py
           python tests/verify_dashboard_control_plane.py
-          python tests/verify_editorial_operational_integration.py
-
