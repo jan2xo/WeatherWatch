@@ -1730,6 +1730,11 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Status: {job['status']}\n"
         f"Post Type: {job.get('post_type', 'image').upper()}\n"
         f"Provider: {format_provider_display(job)}\n"
+        f"Requested Editorial Mode: {job.get('requested_editorial_mode', 'templated')}\n"
+        f"Editorial Mode: {job.get('editorial_mode', 'templated')}\n"
+        f"AI Status: {job.get('ai_status', 'not_requested')}\n"
+        f"AI Provider/Model: {job.get('ai_provider') or 'N/A'} / {job.get('ai_model') or 'N/A'}\n"
+        f"AI Validation: {job.get('ai_validation_state', 'not_run')}\n"
         f"Windy Layer: {job.get('windy_layer_label') or 'N/A'}\n"
         f"Source: {job.get('source')}\n\n"
         f"GPX Headline:\n{job.get('headline')}\n\n"
@@ -1741,7 +1746,8 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🌦 Fetching the latest weather data...")
 
     try:
-        result = await asyncio.to_thread(generate_update)
+        requested_mode = context.args[0].strip().lower() if context.args else None
+        result = await asyncio.to_thread(generate_update, requested_mode)
 
         if isinstance(result, dict) and result.get("skipped"):
             current_job = result.get("current_job", {})
@@ -1751,6 +1757,8 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Status: {current_job.get('status')}\n"
                 f"Post Type: {current_job.get('post_type', 'image').upper()}\n"
                 f"Provider: {format_provider_display(current_job)}\n"
+                f"Editorial Mode: {current_job.get('editorial_mode', 'templated')}\n"
+                f"AI Status: {current_job.get('ai_status', 'not_requested')}\n"
                 f"Windy Layer: {current_job.get('windy_layer_label') or 'N/A'}\n\n"
                 f"GPX Headline:\n{current_job.get('headline') or 'None'}\n\n"
                 f"Facebook Caption Preview:\n{current_job_caption_preview(current_job) or 'None'}\n\n"
