@@ -115,7 +115,7 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Dependencies:** None. This is the prerequisite governance and planning gate for all later phases.\n\n**Scope:** Adopt the canonical BKE Engineering Standard, Autonomous Core Instruction, repository-local instructions, this roadmap, and the existing feature guide as the planning authorities. Record the current revision and preserve current interfaces.
 
-**Acceptance:** Every future PR names its bounded requirement, dependencies, preserved interfaces, evidence, and explicit out-of-scope items. No worker treats this roadmap as permission to implement the whole upgrade.
+**Boundary protected:** Governance and review controls remain the containment boundary; the roadmap itself does not authorize implementation.\n\n**Acceptance:** Every future PR names its bounded requirement, dependencies, preserved interfaces, evidence, and explicit out-of-scope items. No worker treats this roadmap as permission to implement the whole upgrade.
 
 **Verification:** Document inspection, clean branch/base evidence, and independent planning review.
 
@@ -289,7 +289,7 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Dependencies:** Phases 1–10 as applicable. Integrated certification requires the contracts, modes, fallback/validation, state, runtime boundaries, and verification economy to be defined.\n\n**Scope:** Construct synthetic authoritative input fixtures, disposable output/state, sandbox provider adapters, deterministic rendering inputs, fake peripheral Facebook/Telegram boundaries where allowed, and failure scenarios. Real parser, normalization, TEMPLATED/AI contract, validation, approval state machine, rendering boundary, and publication orchestration must execute.
 
-**Acceptance:** Synthetic end-to-end evidence distinguishes facts, generated drafts, human decision, and publication simulation. Test provider outage, malformed AI output, invalid facts, render failure, approval rejection, retry, persistence restart, and rollback/recovery behavior.
+**Boundary protected:** Synthetic certification must execute real WeatherWatch subjects and boundaries without being misrepresented as production certification.\n\n**Acceptance:** Synthetic end-to-end evidence distinguishes facts, generated drafts, human decision, and publication simulation. Test provider outage, malformed AI output, invalid facts, render failure, approval rejection, retry, persistence restart, and rollback/recovery behavior.
 
 **Verification:** Full regression, synthetic end-to-end, security, recovery, and evidence review. Do not call this production certification.
 
@@ -303,7 +303,7 @@ Memory may be prototyped after the AI contract, but it must never precede a cont
 
 **Dependencies:** Phases 8–11. Deployment validation requires an attributable certified revision/artifact, target runtime decisions, durable-state understanding, and available certification evidence.\n\n**Scope:** For each supported target, deploy an identified certified revision/artifact and perform bounded environment-sensitive verification. Preserve VPS runbook and add target-specific guidance only when needed. Production-specific checks remain where DNS, TLS, external providers, OS installation, network policy, backup topology, or other target behavior is material.
 
-**Acceptance:** Source revision/artifact is attributable; runtime starts; dependencies/configuration/secrets are present through approved boundaries; health succeeds; applicable routing/migrations/integration work; rollback remains available. Full engineering certification is not redundantly repeated unless risk requires it.
+**Boundary protected:** Deployment verification must remain distinct from engineering certification, and production authority, secrets, and destructive actions remain controlled.\n\n**Acceptance:** Source revision/artifact is attributable; runtime starts; dependencies/configuration/secrets are present through approved boundaries; health succeeds; applicable routing/migrations/integration work; rollback remains available. Full engineering certification is not redundantly repeated unless risk requires it.
 
 **Verification:** Deployment verification, smoke checks, rollback/recovery evidence, and production certification where the environment itself is the subject.
 
