@@ -1,6 +1,7 @@
 from urllib.parse import urlsplit, urlunsplit
 
 from helpers.browser import capture_page
+from plugins.sources.panahon import capture_panahon_page
 
 
 def apply_windy_framing(url, framing_decision):
@@ -65,6 +66,24 @@ def resolve_capture_url(job):
 
 
 def run_capture_job(job):
+    if (job.get("provider") or "").lower() == "panahon":
+        framing_decision = job.get("framing_decision")
+        try:
+            capture_panahon_page(
+                url=job["url"],
+                output_path=job["raw_output_path"],
+                framing_decision=framing_decision,
+            )
+        except Exception as error:
+            if framing_decision is not None:
+                framing_decision["provider_framing_applied"] = False
+                framing_decision["provider_framing_status"] = "degraded"
+                framing_decision["provider_framing_reason"] = str(error)
+            raise
+        if framing_decision is not None:
+            framing_decision["provider_framing_applied"] = True
+            framing_decision["provider_framing_status"] = "applied"
+        return
     return capture_page(
         url=resolve_capture_url(job),
         output_path=job["raw_output_path"],

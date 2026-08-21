@@ -300,32 +300,18 @@ pan_y: -3
 final center: 10.5, 122.5
 ```
 
-### Adding PANaHON Framing
+### PANaHON Framing
 
-PANaHON cannot automatically reuse WINDY URL framing. Its map interface needs
-its own adapter.
+PANaHON uses a provider-specific Playwright callback. Its public page exposes
+an OpenLayers map as `window.map`; after the map view is ready, the adapter
+converts the existing WeatherWatch center plus `pan_x`/`pan_y` to the map's
+EPSG:3857 coordinates and applies the existing zoom before capture.
 
-Recommended process:
-
-1. Inspect whether PANaHON accepts latitude, longitude, and zoom in its URL.
-2. If it does, add:
-
-   ```python
-   def apply_panahon_framing(url, framing_decision):
-       ...
-   ```
-
-3. Route `provider == "panahon"` through that function in
-   `resolve_capture_url()`.
-4. If PANaHON requires map interactions, extend `capture_page()` with a
-   provider-specific callback or add a provider capture adapter. Use
-   Playwright to wait for the map, set its center/zoom, then screenshot.
-5. Add URL or browser-interaction verification without changing WINDY.
-
-Current limitation:
-
-- PANaHON receives intelligent framing metadata in the job, but its screenshot
-  remains at the provider's default map view when PANaHON is enabled.
+If the map or framing decision is invalid, the provider attempt fails visibly
+with degraded framing metadata so the existing provider orchestration can try
+another provider. PANaHON remains disabled by default in the registry. The
+adapter has synthetic browser-boundary verification; live provider and
+production certification remain pending.
 
 ### `helpers/browser.py`
 
@@ -371,8 +357,8 @@ WINDY is the only provider with an implemented map-framing adapter.
 
 ### `plugins/sources/panahon.py`
 
-Defines PANaHON metadata. Capture works as a generic page screenshot.
-Intelligent map positioning is not yet implemented.
+Defines PANaHON metadata and its provider-specific OpenLayers framing/capture
+callback. PANaHON remains disabled by default.
 
 ### `plugins/sources/meteoblue.py`
 

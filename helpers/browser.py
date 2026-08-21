@@ -2,7 +2,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 
-def capture_page(url, output_path):
+def capture_page(url, output_path, page_setup=None):
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
@@ -15,6 +15,8 @@ def capture_page(url, output_path):
 
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
         page.wait_for_timeout(10000)
+        if page_setup is not None:
+            page_setup(page)
         page.screenshot(path=output_path)
 
         browser.close()
