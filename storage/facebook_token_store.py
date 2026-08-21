@@ -1,6 +1,7 @@
-import json
 from datetime import datetime
 from pathlib import Path
+
+from storage.state_repository import get_state_repository
 
 
 STATE_FILE = Path("state/facebook_token_state.json")
@@ -26,14 +27,9 @@ def default_state():
 
 
 def load_facebook_token_state():
-    if not STATE_FILE.exists():
-        return default_state()
-
-    try:
-        state = json.loads(STATE_FILE.read_text())
-    except json.JSONDecodeError:
-        return default_state()
-
+    state = get_state_repository(
+        STATE_FILE, state_key="facebook_token_state"
+    ).load(default_state)
     return {
         **default_state(),
         **state,
@@ -41,8 +37,7 @@ def load_facebook_token_state():
 
 
 def save_facebook_token_state(state):
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+    get_state_repository(STATE_FILE, state_key="facebook_token_state").save(state)
     return state
 
 

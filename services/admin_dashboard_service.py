@@ -22,6 +22,7 @@ from core.scheduler import get_scheduler_runtime_status
 from storage.approval_store import STATE_FILE as APPROVAL_STATE_FILE
 from storage.approval_store import get_current_job
 from storage.facebook_token_store import STATE_FILE as FACEBOOK_TOKEN_STATE_FILE
+from storage.state_repository import get_state_backend_status
 
 
 APP_VERSION = "0.9.0"
@@ -344,6 +345,14 @@ def build_health_payload():
     windy_status = safe_windy_status()
     ai_config_status = safe_ai_config_status()
     state_files = get_state_file_status()
+    try:
+        backend_status = get_state_backend_status()
+    except (ValueError, RuntimeError) as error:
+        backend_status = {
+            "state_backend": "invalid",
+            "state_backend_status": "degraded",
+            "state_backend_error": str(error),
+        }
     framing_decision = job.get("framing_decision") or {}
     facebook_health = facebook_status.get("status") not in {"invalid", "missing"}
     template_health = template_status.get("validation_status") == "valid"
@@ -351,7 +360,10 @@ def build_health_payload():
         scheduler_status.get("validation_status") == "valid"
     )
     windy_health = windy_status.get("validation_status") == "valid"
-    durable_state_available = state_files.get("approval_state", False) or not state_files
+    durable_state_available = (
+        state_files.get("approval_state", False)
+        or backend_status.get("state_backend") == "redis"
+    )
 
     return {
         "ok": bool(
@@ -365,6 +377,7 @@ def build_health_payload():
         "durable_state": {
             "available": durable_state_available,
             "approval_state_file_present": state_files.get("approval_state", False),
+            **backend_status,
         },
         "editorial_subsystem": {
             "templated_available": template_health,
