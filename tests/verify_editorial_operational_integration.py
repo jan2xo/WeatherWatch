@@ -35,8 +35,8 @@ def verify_generated_job_records_mode_boundary():
 
         assert result["status"] == "pending"
         assert captured["requested_editorial_mode"] == "automatic"
-        assert captured["editorial_mode"] == "templated"
-        assert captured["ai_status"] == "unavailable/degraded"
+        assert captured["editorial_mode"] == "automatic"
+        assert captured["ai_status"] == "pending"
         assert captured["ai_validation_state"] == "not_run"
     finally:
         app.get_current_job = original_current
@@ -47,16 +47,29 @@ def verify_generated_job_records_mode_boundary():
 
 def verify_explicit_ai_does_not_fallback_silently():
     original_current = app.get_current_job
+    original_providers = app.get_providers
+    original_fetch = app.fetch_daily_forecast
+    original_pipeline = app.run_weather_pipeline
+    captured = {}
     try:
         app.get_current_job = lambda: None
-        try:
-            app.WeatherWatch().update("ai_assisted")
-        except RuntimeError as error:
-            assert "TEMPLATED remains available" in str(error)
-        else:
-            raise AssertionError("Explicit unavailable AI must remain visible")
+        app.get_providers = lambda: [{
+            "name": "test",
+            "display_name": "TEST",
+            "shorten_url": "test.example",
+            "url": "https://test.example",
+        }]
+        app.fetch_daily_forecast = lambda: "PAGASA forecast"
+        app.run_weather_pipeline = lambda job: captured.update(job) or {"status": "pending"}
+        result = app.WeatherWatch().update("ai_assisted")
+        assert result["status"] == "pending"
+        assert captured["editorial_mode"] == "ai_assisted"
+        assert captured["ai_status"] == "pending"
     finally:
         app.get_current_job = original_current
+        app.get_providers = original_providers
+        app.fetch_daily_forecast = original_fetch
+        app.run_weather_pipeline = original_pipeline
 
 
 def verify_dashboard_and_control_plane_visibility():
