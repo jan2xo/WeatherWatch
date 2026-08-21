@@ -27,7 +27,8 @@ def run_weather_pipeline(job):
 
     job["content_type"] = job["forecast"]["weather_type"]
 
-    if job.get("requested_editorial_mode") != "templated":
+    requested_mode = job.get("requested_editorial_mode", "templated")
+    if requested_mode != "templated":
         try:
             draft, provenance = generate_ai_editorial(job["forecast"]["structured"])
             job["editorial_mode"] = "ai_assisted"
@@ -40,6 +41,10 @@ def run_weather_pipeline(job):
             job["_ai_headline"] = draft.headline
             job["_ai_caption"] = draft.caption
         except Exception as error:
+            if requested_mode == "ai_assisted":
+                raise RuntimeError(
+                    "AI ASSISTED unavailable/degraded; TEMPLATED remains available."
+                ) from error
             job["editorial_mode"] = "templated"
             job["ai_status"] = "fallback/degraded"
             job["ai_validation_state"] = "not_run"
