@@ -6,6 +6,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]
 import core.app as app
 import services.admin_dashboard_service as dashboard
 import services.control_plane_service as control
+import services.ai_config_service as ai_config
 
 
 def verify_generated_job_records_mode_boundary():
@@ -103,8 +104,17 @@ def verify_dashboard_and_control_plane_visibility():
             os.environ["FACEBOOK_PAGE_ACCESS_TOKEN"] = original_facebook_token
 
 
+def verify_ai_configuration_visibility():
+    status = ai_config.get_ai_config_status()
+    assert status["validation_status"] == "valid"
+    assert status["mode"] == "templated"
+    assert status["fallback_enabled"] is True
+    assert all("credential" not in str(provider).lower() for provider in status["providers"])
+
+
 if __name__ == "__main__":
     verify_generated_job_records_mode_boundary()
     verify_explicit_ai_does_not_fallback_silently()
     verify_dashboard_and_control_plane_visibility()
+    verify_ai_configuration_visibility()
     print("editorial operational integration verification ok")

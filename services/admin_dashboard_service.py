@@ -16,6 +16,7 @@ from services.facebook_service import (
 )
 from services.scheduler_config_service import get_scheduler_status
 from services.windy_layer_service import get_windy_layer_status
+from services.ai_config_service import get_ai_config_status
 import services.control_plane_service as control_plane
 from core.scheduler import get_scheduler_runtime_status
 from storage.approval_store import STATE_FILE as APPROVAL_STATE_FILE
@@ -296,6 +297,19 @@ def safe_windy_status():
     }
 
 
+def safe_ai_config_status():
+    status = get_ai_config_status()
+    return {
+        "config_path": status.get("config_path"),
+        "mode": status.get("mode"),
+        "fallback_enabled": status.get("fallback_enabled"),
+        "max_attempts": status.get("max_attempts"),
+        "validation_status": status.get("validation_status"),
+        "last_validation_error": status.get("last_validation_error"),
+        "providers": status.get("providers") or [],
+    }
+
+
 def get_last_error(
     job,
     facebook_status,
@@ -318,6 +332,7 @@ def build_health_payload():
     template_status = safe_template_status()
     scheduler_status = safe_scheduler_status()
     windy_status = safe_windy_status()
+    ai_config_status = safe_ai_config_status()
     state_files = get_state_file_status()
     framing_decision = job.get("framing_decision") or {}
     facebook_health = facebook_status.get("status") not in {"invalid", "missing"}
@@ -362,6 +377,7 @@ def build_health_payload():
         "suggested_windy_layer": job.get("suggested_windy_layer"),
         "current_windy_url": job.get("windy_url"),
         "windy_status": windy_status,
+        "ai_editorial_config": ai_config_status,
         "framing_decision": job.get("framing_decision"),
         "framing_source": framing_decision.get("source"),
         "framing_matched_region": framing_decision.get("matched_region_id"),
@@ -603,6 +619,7 @@ def render_admin_page(message=None, message_is_error=False):
     template_status = safe_template_status()
     scheduler_status = safe_scheduler_status()
     windy_status = safe_windy_status()
+    ai_config_status = safe_ai_config_status()
     state_files = get_state_file_status()
     last_error = get_last_error(
         job,
@@ -1001,6 +1018,16 @@ def render_admin_page(message=None, message_is_error=False):
             ("Framing", framing_summary, "job.framing"),
             ("Pending Policy", scheduler_policy, "job.pending_policy"),
             ("Last Error", job.get("last_error"), "job.last_error"),
+        ])}</table>
+      </section>
+      <section>
+        <h2>AI Editorial Configuration</h2>
+        <table>{dynamic_table_rows([
+            ("Mode", ai_config_status.get("mode"), "ai.mode"),
+            ("Validation", ai_config_status.get("validation_status"), "ai.validation"),
+            ("Fallback", ai_config_status.get("fallback_enabled"), "ai.fallback"),
+            ("Max Attempts", ai_config_status.get("max_attempts"), "ai.max_attempts"),
+            ("Providers", json.dumps(ai_config_status.get("providers"), ensure_ascii=True), "ai.providers"),
         ])}</table>
       </section>
       <section>

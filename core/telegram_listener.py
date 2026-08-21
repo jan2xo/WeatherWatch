@@ -105,6 +105,7 @@ from services.windy_layer_service import (
     starter_windy_json,
     windy_json_preview,
 )
+from services.ai_config_service import get_ai_config_status
 from config.settings import (
     get_required_env,
     parse_env_id_list,
@@ -1742,6 +1743,25 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ))
 
 
+async def ai_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    status = get_ai_config_status()
+    providers = status.get("providers") or []
+    provider_lines = "\n".join(
+        f"- {provider['name']}: {'enabled' if provider['enabled'] else 'disabled'}; "
+        f"priority {provider['priority']}; model {provider['model'] or 'unset'}"
+        for provider in providers
+    ) or "None"
+    await update.message.reply_text(
+        "AI Editorial Configuration\n\n"
+        f"Mode: {status.get('mode') or 'invalid'}\n"
+        f"Validation: {status.get('validation_status')}\n"
+        f"Fallback enabled: {status.get('fallback_enabled')}\n"
+        f"Max attempts: {status.get('max_attempts')}\n"
+        f"Providers:\n{provider_lines}\n\n"
+        "Credentials and provider payloads are not displayed."
+    )
+
+
 async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🌦 Fetching the latest weather data...")
 
@@ -2129,6 +2149,7 @@ def build_telegram_app():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("manual", admin_command(manual_command)))
     app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("ai_status", admin_command(ai_status_command)))
     app.add_handler(CommandHandler("update", admin_command(update_command)))
     app.add_handler(CommandHandler("approve", admin_command(approve_command)))
     app.add_handler(CommandHandler("text_approve", admin_command(text_approve_command)))
