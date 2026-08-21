@@ -1746,6 +1746,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ))
 
 
+def format_ai_fallback_level(level):
+    return "N/A" if level is None else str(level)
+
+
 async def ai_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status = get_ai_config_status()
     editorial = get_editorial_status()
@@ -1763,7 +1767,7 @@ async def ai_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Max attempts: {status.get('max_attempts')}\n"
         f"Resolved mode: {editorial.get('editorial_mode')}\n"
         f"Used provider/model: {editorial.get('ai_provider') or 'N/A'} / {editorial.get('ai_model') or 'N/A'}\n"
-        f"Fallback level: {editorial.get('ai_fallback_level') or 'N/A'}\n"
+        f"Fallback level: {format_ai_fallback_level(editorial.get('ai_fallback_level'))}\n"
         f"Validation state: {editorial.get('ai_validation_state')}\n"
         f"Rules version: {(editorial.get('editorial_provenance') or {}).get('rules_version', 'N/A')}\n"
         f"Memory references: {len((editorial.get('editorial_provenance') or {}).get('memory_references', []))}\n"
