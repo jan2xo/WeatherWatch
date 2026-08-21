@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "mode": "templated",
+  "providers": [
+    {
+      "name": "openrouter",
+      "enabled": false,
+      "priority": 10,
+      "model": "",
+      "timeout_seconds": 30
+    },
+    {
+      "name": "provider_2",
+      "enabled": false,
+      "priority": 20,
+      "model": "",
+      "timeout_seconds": 30
+    },
+    {
+      "name": "provider_3",
+      "enabled": false,
+      "priority": 30,
+      "model": "",
+      "timeout_seconds": 30
+    },
+    {
+      "name": "openai",
+      "enabled": false,
+      "priority": 40,
+      "model": "",
+      "timeout_seconds": 30
+    }
+  ],
+  "fallback": {
+    "enabled": true,
+    "max_attempts": 4
+  }
+}
