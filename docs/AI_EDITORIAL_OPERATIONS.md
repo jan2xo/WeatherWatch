@@ -85,6 +85,26 @@ credential-reference names remain repository-controlled; endpoints, models,
 and keys remain owner-controlled. Missing endpoint/model/key makes that provider
 unavailable without exposing its credential.
 
+OpenRouter reasoning transport is optional and disabled by default:
+
+```dotenv
+WEATHERWATCH_AI_OPENROUTER_REASONING_ENABLED=false
+```
+
+When enabled, WeatherWatch adds `"reasoning": {"enabled": true}` only to the
+OpenRouter chat-completions request. The configured model ID is forwarded
+unchanged; for example, an owner may select
+`nvidia/nemotron-3-ultra-550b-a55b:free`. The JSON-object response format and
+validation remain mandatory. OpenRouter `reasoning_details` are ignored: they
+are not returned, logged, persisted, added to provenance or editorial memory,
+or exposed through Telegram status. No response-format retry is implemented
+because no reproducible rejection has been established; live Render/OpenRouter
+certification will determine whether a narrowly bounded retry is needed.
+
+Reasoning is only a provider/model transport capability. It does not make AI
+authoritative over weather facts: canonical structured weather facts, editorial
+rules, factual validation, and human approval retain their existing authority.
+
 ## Runtime behavior
 
 - `templated`: deterministic composer only.

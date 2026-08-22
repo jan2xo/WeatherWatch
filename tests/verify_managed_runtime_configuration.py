@@ -170,6 +170,7 @@ def assert_safe_environment_contract():
         "FACEBOOK_PAGE_ACCESS_TOKEN=",
         "WEATHERWATCH_REDIS_URL=",
         "OPENROUTER_API_KEY=",
+        "WEATHERWATCH_AI_OPENROUTER_REASONING_ENABLED=false",
         "OPENAI_API_KEY=",
     ):
         assert placeholder in example

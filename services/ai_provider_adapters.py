@@ -25,10 +25,27 @@ PROVIDER_DEFAULT_BASE_URL = {
     "openrouter": "https://openrouter.ai/api/v1",
     "openai": "https://api.openai.com/v1",
 }
+OPENROUTER_REASONING_ENABLED_ENV = (
+    "WEATHERWATCH_AI_OPENROUTER_" "REASONING_ENABLED"
+)
 
 
 def _environment(environ=None):
     return os.environ if environ is None else environ
+
+
+def _openrouter_reasoning_enabled(environ=None):
+    environment = _environment(environ)
+    value = str(
+        environment.get(OPENROUTER_REASONING_ENABLED_ENV, "false")
+    ).strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ProviderRequestError(
+        f"{OPENROUTER_REASONING_ENABLED_ENV} must be a boolean value."
+    )
 
 
 def resolve_provider_endpoint(provider, environ=None):
@@ -91,7 +108,12 @@ def _json_object(text):
         text = text.strip("`").strip()
         if text.startswith("json"):
             text = text[4:].strip()
-    value = json.loads(text)
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ProviderRequestError(
+            "Provider message content was not valid JSON."
+        ) from error
     if not isinstance(value, dict):
         raise ProviderRequestError("Provider response was not a JSON object.")
     return value
@@ -151,6 +173,8 @@ class OpenAICompatibleEditorialProvider:
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }
+        if self.name == "openrouter" and _openrouter_reasoning_enabled(self.environ):
+            body["reasoning"] = {"enabled": True}
         request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(body).encode("utf-8"),
