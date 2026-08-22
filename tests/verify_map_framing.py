@@ -19,7 +19,7 @@ from services.image_rendering_service import (
     stretch,
     validate_upload_size,
 )
-from services.capture_service import apply_windy_framing, resolve_capture_url
+from services.capture_service import apply_windy_framing
 from services.map_framing_service import determine_map_framing
 
 
@@ -215,12 +215,6 @@ def main():
         },
     )
     assert framed_url.endswith("?satellite,10.5000,123.7500,7")
-    assert resolve_capture_url({
-        "provider": "panahon",
-        "url": "https://www.panahon.gov.ph/",
-        "framing_decision": cyclone,
-    }) == "https://www.panahon.gov.ph/"
-
     changed = default_config()
     changed["auto_map"]["framing"]["situations"]["cyclone"]["zoom"] = 8
     changed_zoom = determine_map_framing(

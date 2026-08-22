@@ -745,7 +745,7 @@ async def scheduler_manual_command(
     await update.message.reply_text(
         "Scheduler Manual\n\n"
         "Scheduler configuration controls automatic weather-update times without editing Python code.\n\n"
-        "Each job has an ID, enabled state, 24-hour HH:MM time, action, provider field, and pending-job skip policy.\n"
+        "Each job has an ID, enabled state, 24-hour HH:MM time, action, provider field, and pending-job skip policy. Provider remains default because WINDY is the sole operational map source.\n"
         "When auto_reject_before_next_run is enabled, stale pending or modified jobs are rejected immediately before the next scheduled update. Approved and publishing jobs are never auto-rejected.\n"
         "Supported action: weather_update\n"
         "Timezone uses an IANA name such as Asia/Manila.\n\n"

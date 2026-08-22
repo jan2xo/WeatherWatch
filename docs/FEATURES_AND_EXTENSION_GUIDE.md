@@ -14,7 +14,7 @@ File: `docs/FEATURES_AND_EXTENSION_GUIDE.md`
 WeatherWatch:
 
 1. Fetches the PAGASA weather synopsis.
-2. Selects an enabled map provider.
+2. Uses the registered WINDY map source.
 3. Parses weather facts into structured data.
 4. Composes public-information wording.
 5. Selects a config-driven map framing decision.
@@ -75,7 +75,7 @@ The active automatic update flow is:
 Telegram /update or scheduler
   -> core.app.WeatherWatch.update()
   -> PAGASA synopsis fetch
-  -> provider selection
+  -> WINDY map source
   -> pipelines.weather_pipeline.run_weather_pipeline()
   -> structured forecast parsing
   -> config-driven language normalization
@@ -111,17 +111,18 @@ while a current job exists.
 Responsibilities:
 
 - blocks generation when a current approval job exists;
-- gets enabled providers from the registry;
+- gets WINDY from the active registry;
 - fetches PAGASA synopsis text;
 - builds the initial job dictionary;
-- tries providers until one succeeds;
+- runs the existing WINDY capture path;
 - delegates processing to the weather pipeline.
 
 Extension notes:
 
-- A provider must supply `name`, `display_name`, `url`, and `shorten_url`.
-- Provider failures are caught so another registered provider can be tried.
-- Do not put provider-specific browser logic here.
+- WINDY supplies `name`, `display_name`, `url`, and `shorten_url`.
+- A WINDY capture failure fails the update visibly; no map-provider fallback is
+  registered.
+- Any future map-provider expansion requires a separate approved project.
 
 ### `core/scheduler.py`
 
@@ -161,8 +162,9 @@ Manages `config/scheduler.json`:
 
 Supported action: `weather_update`.
 
-The `provider` field is stored for future provider selection. Current update
-generation still uses the normal provider registry.
+The legacy `provider` field remains `default` for configuration compatibility.
+Scheduler execution uses the normal active registry, which contains WINDY
+only. It does not provide runtime provider selection.
 
 ### `core/telegram_listener.py`
 
@@ -274,7 +276,6 @@ Current capabilities:
 
 - resolves the URL that Playwright will open;
 - applies intelligent framing to WINDY;
-- leaves unsupported providers unchanged;
 - delegates the actual screenshot to `helpers/browser.py`.
 
 WINDY framing rewrites:
@@ -300,32 +301,12 @@ pan_y: -3
 final center: 10.5, 122.5
 ```
 
-### Adding PANaHON Framing
+### Map-provider scope
 
-PANaHON cannot automatically reuse WINDY URL framing. Its map interface needs
-its own adapter.
-
-Recommended process:
-
-1. Inspect whether PANaHON accepts latitude, longitude, and zoom in its URL.
-2. If it does, add:
-
-   ```python
-   def apply_panahon_framing(url, framing_decision):
-       ...
-   ```
-
-3. Route `provider == "panahon"` through that function in
-   `resolve_capture_url()`.
-4. If PANaHON requires map interactions, extend `capture_page()` with a
-   provider-specific callback or add a provider capture adapter. Use
-   Playwright to wait for the map, set its center/zoom, then screenshot.
-5. Add URL or browser-interaction verification without changing WINDY.
-
-Current limitation:
-
-- PANaHON receives intelligent framing metadata in the job, but its screenshot
-  remains at the provider's default map view when PANaHON is enabled.
+WINDY is the sole operational map provider. PANaHON and Meteoblue are outside
+current product scope and are not registered runtime options. Their historical
+metadata modules may remain as inactive evidence, but future provider expansion
+requires a separate explicitly approved project.
 
 ### `helpers/browser.py`
 
@@ -354,30 +335,28 @@ Keep provider policy outside this generic helper when possible.
 
 ### `plugins/sources/registry.py`
 
-Controls which providers are active. It copies and randomizes the enabled
-provider list before each update.
+Exposes the operational map provider to each update.
 
 Configuration at the time of this audit:
 
-- WINDY enabled;
-- PANaHON imported but commented out;
-- Meteoblue imported but not enabled.
+- WINDY is the only registered provider.
+- No provider roulette or map-provider fallback is active.
 
 ### `plugins/sources/windy.py`
 
 Defines WINDY name, display name, satellite URL, and attribution URL.
 
-WINDY is the only provider with an implemented map-framing adapter.
+WINDY intelligent framing is the canonical map-framing implementation.
 
 ### `plugins/sources/panahon.py`
 
-Defines PANaHON metadata. Capture works as a generic page screenshot.
-Intelligent map positioning is not yet implemented.
+Historical metadata only. PANaHON is unregistered and outside current product
+scope.
 
 ### `plugins/sources/meteoblue.py`
 
-Placeholder provider metadata. It lacks `display_name` and `shorten_url`, so it
-must be completed before enabling it in the registry.
+Historical metadata only. Meteoblue is unregistered and outside current product
+scope.
 
 ### Region Plugin Placeholders
 
@@ -515,8 +494,8 @@ Known constraints:
 - a subregion without dedicated framing intentionally uses its broad parent;
 - unknown affected-area text falls back to the detected weather-system
   situation;
-- PANaHON still needs its own provider adapter before it can apply these
-  coordinates to the browser map.
+- WINDY consumes these coordinates through the existing canonical URL framing
+  adapter.
 
 Use `/image_reload` after editing the file directly.
 
@@ -1245,8 +1224,7 @@ Runtime-only locations:
 - Native text publishing currently targets Facebook only; video is reserved.
 - Windy layer changes on an existing job update metadata only; v0.8.7 does not recapture the graphic.
 - Windy layer rotation is reserved but not active.
-- PANaHON framing is not implemented.
-- Meteoblue metadata is incomplete.
+- PANaHON and Meteoblue are outside current product scope and unregistered.
 - Region plugin modules are placeholders.
 - `services/approval_bot.py` is legacy and separate from the active workflow.
 - `services/approval_service.py` and `services/publish_service.py` are empty.
@@ -1265,7 +1243,7 @@ Before adding a feature:
 
 1. Put editable policy in the appropriate existing config file.
 2. Put execution logic in a focused service.
-3. Keep provider-specific behavior in provider/capture adapters.
+3. Keep canonical WINDY map behavior in the existing capture adapter.
 4. Preserve singleton approval-state compatibility.
 5. Protect admin commands with the Telegram allowlist.
 6. Never log or return secrets.

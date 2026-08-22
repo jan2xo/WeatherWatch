@@ -278,7 +278,7 @@ Requirements:
 Planned platform expansion:
 
 * Multi-page deployment
-* Additional weather providers
+* WINDY-only map operations; any future provider expansion requires a separate approved project
 * REST API
 * Project Freedom Dashboard
 * Broadcast Stack integration

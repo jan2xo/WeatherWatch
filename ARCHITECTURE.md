@@ -10,7 +10,7 @@ helpers/
     Shared Utilities
 
 plugins/sources/
-    Weather Providers
+    WINDY Map Source
 
 plugins/regions/
     Regional Configurations

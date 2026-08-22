@@ -50,7 +50,7 @@ def format_provider_display(job):
 def build_source_block(job):
     """
     Forecast text comes from PAGASA.
-    Map/visualization comes from the active provider: Windy, PANaHON, etc.
+    Map/visualization comes from the sole operational provider: WINDY.
     """
 
     provider_display = job.get("provider_display") or job.get("provider") or "Provider"
