@@ -79,4 +79,4 @@ class WeatherWatch:
         if last_error:
             raise last_error
 
-        raise RuntimeError("No weather providers are configured.")
+        raise RuntimeError("WINDY map provider is not configured.")

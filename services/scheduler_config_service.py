@@ -140,8 +140,10 @@ def validate_scheduler_config(config):
             raise ValueError(
                 f"{path}.action is unsupported: {job['action']!r}"
             )
-        if "provider" in job and not isinstance(job["provider"], str):
-            raise ValueError(f"{path}.provider must be a string.")
+        if "provider" in job and job["provider"] != "default":
+            raise ValueError(
+                f"{path}.provider must be 'default' for WINDY-only operation."
+            )
         if (
             "skip_if_pending_job_exists" in job
             and not isinstance(job["skip_if_pending_job_exists"], bool)

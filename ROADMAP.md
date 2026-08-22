@@ -35,12 +35,12 @@ Existing CLI/headless operation, Telegram approval, local dashboard, health/stat
 The current repository is a Python modular service application.
 
 - `main.py` starts `WeatherWatchService`; `python -m core.service` is the documented production entry point.
-- `core/app.py` orchestrates updates, provider selection, PAGASA fetch, and the weather pipeline.
+- `core/app.py` orchestrates updates, the WINDY map source, PAGASA fetch, and the weather pipeline.
 - `core/service.py` starts Telegram polling, scheduler, local admin dashboard, and Facebook reconnect support.
 - `core/telegram_listener.py` is a substantial command router and human approval interface.
 - `services/control_plane_service.py` centralizes generation, approval, rejection, retry, modification, and status state transitions.
 - `services/pagasa_service.py` fetches the authoritative synopsis; `services/forecast_service.py` and `services/forecast_parser.py` provide weather retrieval/parsing responsibilities.
-- `plugins/sources/registry.py` provides provider selection. WINDY has implemented intelligent framing; PANaHON has metadata and generic capture but no intelligent map positioning; Meteoblue is placeholder metadata and is not ready to enable.
+- `plugins/sources/registry.py` exposes WINDY as the sole operational map provider. Existing WINDY intelligent framing is canonical; PANaHON and Meteoblue are outside current product scope.
 - `pipelines/weather_pipeline.py` parses forecast text, builds structured forecast/content, captures a provider page, renders a branded graphic, creates deterministic captions, persists an approval job, and sends review.
 - `services/caption_template_service.py`, `services/content_composer_service.py`, and their JSON configuration provide the existing deterministic editorial path. This path is working capability and is not to be deprecated because AI is added.
 - `helpers/browser.py` performs Playwright screenshot capture. `services/image_rendering_service.py`, `image_service.py`, and map-framing services provide the rendering pipeline.

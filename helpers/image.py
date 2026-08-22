@@ -129,7 +129,7 @@ def compose_weather_card(
     input_path: str,
     output_path: str,
     headline: str,
-    source: str = "Data: Meteoblue",
+    source: str = "Map: WINDY",
     overlay_path: str | Path = OVERLAY_PATH,
 ):
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
