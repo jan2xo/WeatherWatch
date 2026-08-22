@@ -19,10 +19,12 @@ WINDY_READINESS_EXPRESSION = """() => {
     const layerRect = renderedLayer.getBoundingClientRect();
     return layerRect.width > 0 && layerRect.height > 0;
 }"""
+WINDY_PAINT_SETTLE_MS = 10000
 
 
 def wait_for_windy_ready(page, timeout_ms):
     page.wait_for_function(WINDY_READINESS_EXPRESSION, timeout=timeout_ms)
+    page.wait_for_timeout(WINDY_PAINT_SETTLE_MS)
 
 
 def apply_windy_framing(url, framing_decision):
