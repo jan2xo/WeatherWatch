@@ -28,6 +28,9 @@ class FakePage:
         if self.failure_stage == "readiness":
             raise TimeoutError("synthetic readiness timeout")
 
+    def wait_for_timeout(self, timeout):
+        self.events.append(("paint_settle", timeout))
+
     def screenshot(self, path):
         self.events.append(("screenshot", path))
         if self.failure_stage == "screenshot":
@@ -158,21 +161,37 @@ def assert_artifact_validation(temporary_directory):
 def assert_capture_lifecycle(temporary_directory):
     output = Path(temporary_directory) / "capture.png"
     events, lifecycles = install_fake_playwright([{}])
-    attempts = browser_helper.capture_page(
-        "https://www.windy.com/synthetic",
-        output,
-        readiness_callback=capture_service.wait_for_windy_ready,
-        retry_delay_seconds=0,
-    )
+    original_validate_capture_artifact = browser_helper.validate_capture_artifact
+
+    def record_validation(path):
+        events.append(("validation", path))
+        return original_validate_capture_artifact(path)
+
+    browser_helper.validate_capture_artifact = record_validation
+    try:
+        attempts = browser_helper.capture_page(
+            "https://www.windy.com/synthetic",
+            output,
+            readiness_callback=capture_service.wait_for_windy_ready,
+            retry_delay_seconds=0,
+        )
+    finally:
+        browser_helper.validate_capture_artifact = original_validate_capture_artifact
     assert attempts == 1
     assert output.is_file()
     assert_closed(lifecycles[0])
     event_names = [event[0] for event in events]
-    assert event_names.index("ready") < event_names.index("screenshot")
+    assert event_names.index("navigate") < event_names.index("ready")
+    assert event_names.index("ready") < event_names.index("paint_settle")
+    assert event_names.index("paint_settle") < event_names.index("screenshot")
+    assert event_names.index("screenshot") < event_names.index("validation")
     readiness_event = next(event for event in events if event[0] == "ready")
     assert "#map-container" in readiness_event[1]
     assert "#leaflet-map" in readiness_event[1]
     assert "canvas" in readiness_event[1]
+    settle_event = next(event for event in events if event[0] == "paint_settle")
+    assert settle_event[1] == 10000
+    assert settle_event[1] == capture_service.WINDY_PAINT_SETTLE_MS
     assert event_names.index("browser_close") < event_names.index("playwright_exit")
 
     events, lifecycles = install_fake_playwright([
@@ -187,6 +206,30 @@ def assert_capture_lifecycle(temporary_directory):
     )
     assert attempts == 2
     assert len(lifecycles) == 2
+    assert all(resource.closed for lifecycle in lifecycles for resource in lifecycle)
+    assert [event[0] for event in events].count("paint_settle") == 1
+
+    events, lifecycles = install_fake_playwright([
+        {"failure_stage": "screenshot"},
+        {},
+    ])
+    attempts = browser_helper.capture_page(
+        "https://www.windy.com/synthetic",
+        output,
+        readiness_callback=capture_service.wait_for_windy_ready,
+        retry_delay_seconds=0,
+    )
+    assert attempts == 2
+    assert [event[0] for event in events].count("ready") == 2
+    assert [event[0] for event in events].count("paint_settle") == 2
+    assert [event[0] for event in events].count("screenshot") == 2
+    for screenshot_index in [
+        index for index, event in enumerate(events) if event[0] == "screenshot"
+    ]:
+        assert events[screenshot_index - 1] == (
+            "paint_settle",
+            capture_service.WINDY_PAINT_SETTLE_MS,
+        )
     assert all(resource.closed for lifecycle in lifecycles for resource in lifecycle)
 
     events, lifecycles = install_fake_playwright([

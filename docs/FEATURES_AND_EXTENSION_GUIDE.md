@@ -276,7 +276,8 @@ Current capabilities:
 
 - resolves the URL that Playwright will open;
 - applies intelligent framing to WINDY;
-- waits for WINDY's map container and a rendered map layer before capture;
+- waits for WINDY's map container and a rendered map layer, then allows a
+  bounded 10-second post-readiness paint settle before capture;
 - records bounded attempt count and safe success/failure metadata;
 - delegates the actual screenshot to `helpers/browser.py`.
 
@@ -328,9 +329,15 @@ It:
 - removes failed partial artifacts and closes page, context, and browser on
   every attempt.
 
-The focused verification uses synthetic browser boundaries and generated image
-artifacts. Live WINDY, managed-runtime Chromium, and production capture remain
-runtime certification work; repository verification does not claim them.
+The 10-second WINDY paint settle matches the empirically proven legacy capture
+behavior. It is provider-specific and runs after structural readiness on every
+attempt; the generic browser helper does not impose it on other pages.
+
+Artifact validation proves file integrity and sensible dimensions, not that a
+provider's semantic map content painted correctly. The focused verification
+uses synthetic browser boundaries and generated image artifacts. Repository
+verification passes synthetically; live WINDY certification, managed-runtime
+Chromium verification, and production capture certification remain pending.
 
 Safe extensions:
 
