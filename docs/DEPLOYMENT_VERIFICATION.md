@@ -92,7 +92,9 @@ startup, or semantically correct live imagery.
 ## Current truthful status
 
 - Native Render Python/Playwright contract: **FAILED and retired**.
-- Repository Docker verification: pending the exact-head P22 local/hosted result.
+- Repository Docker verification: **PASS** on the final P22 PR head through
+  hosted convergence, including image build, offline Chromium launch,
+  root-owned disk handoff, `/health`, and bounded clean shutdown.
 - Existing Render development service Docker redeployment: pending.
 - Render Docker process and `/health`: pending.
 - Render Chromium launch: pending.

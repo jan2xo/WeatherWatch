@@ -10,7 +10,7 @@ def main():
     assert "application_alive" in document
     assert "owner-controlled" in document
     assert "Native Render Python/Playwright contract: **FAILED and retired**" in document
-    assert "Repository Docker verification: pending" in document
+    assert "Repository Docker verification: **PASS**" in document
     assert "Existing Render development service Docker redeployment: pending" in document
     assert "Render Docker process and `/health`: pending" in document
     assert "Render Chromium launch: pending" in document
