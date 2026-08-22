@@ -13,19 +13,42 @@ is a JSON array with stable IDs, for example:
 [
   {
     "memory_id": "rain-cagayan-001",
+    "approved": true,
+    "created_at": "2026-08-22T12:00:00+08:00",
+    "updated_at": "2026-08-22T12:00:00+08:00",
     "headline": "PAG-ULAN, ASAHAN SA ILANG BAHAGI NG CAGAYAN",
     "caption": "Approved WeatherWatch wording goes here.",
     "tags": ["rain", "cagayan", "advisory"],
     "category": "rain_advisory",
-    "approved": true,
-    "source_type": "curated"
+    "locations": ["Cagayan"],
+    "tone": "calm",
+    "source_type": "owner_curated"
   }
 ]
 ```
 
-Only explicitly approved items are eligible. Retrieval is bounded to five
-examples by default. Memory is editorial precedent, never meteorological
-truth, and human edits do not enter the corpus automatically.
+Required fields are `memory_id`, `approved`, `created_at`, `updated_at`,
+`headline`, `caption`, `tags`, `category`, `locations`, `tone`, and
+`source_type`. Optional fields are `text` and `post_type`. IDs are stable,
+unique, lowercase identifiers; timestamps must be ISO 8601 with a timezone and
+`updated_at` cannot precede `created_at`. Only explicitly approved items are
+eligible. Retrieval is bounded to at most ten examples. Memory is editorial
+precedent, never meteorological truth, and human edits do not enter the corpus
+automatically.
+
+The active managed-runtime corpus is rooted beneath
+`WEATHERWATCH_RUNTIME_ROOT`; the repository file seeds it only when no runtime
+copy exists. Validate before deployment or reload, without contacting any
+provider:
+
+```bash
+python -m tools.editorial_memory schema
+python -m tools.editorial_memory validate
+python -m tools.editorial_memory validate /path/to/editorial_memory.json
+```
+
+The owner or designated editor must replace the empty corpus with real approved
+examples. Synthetic fixtures are verification data, not production memory.
 
 ## Context and rules
 
@@ -52,6 +75,16 @@ inventories are not hardcoded. Configure endpoints through:
 
 No credential values belong in the repository.
 
+Runtime environment overrides support enabled state, model, and timeout for
+each named provider, for example
+`WEATHERWATCH_AI_OPENROUTER_ENABLED`,
+`WEATHERWATCH_AI_OPENROUTER_MODEL`, and
+`WEATHERWATCH_AI_OPENROUTER_TIMEOUT_SECONDS`, with equivalent `PROVIDER_2`,
+`PROVIDER_3`, and `OPENAI` names shown in `.env.example`. Provider priority and
+credential-reference names remain repository-controlled; endpoints, models,
+and keys remain owner-controlled. Missing endpoint/model/key makes that provider
+unavailable without exposing its credential.
+
 ## Runtime behavior
 
 - `templated`: deterministic composer only.
@@ -69,3 +102,6 @@ Telegram `/ai_status` shows safe configuration and current generation metadata;
 prompts. Existing approval, dashboard, CLI/headless, rendering, Facebook, and
 VPS interfaces remain in place.
 
+Repository tests use fake adapters only. Actual provider/model/key selection,
+live fallback behavior, latency, quotas, and output certification remain
+owner-controlled runtime work.

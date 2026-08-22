@@ -7,11 +7,13 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from config.runtime_paths import runtime_config_path, runtime_path
+
 
 LOGGER = logging.getLogger(__name__)
-CONFIG_PATH = Path("config/windy_layers.json")
-BACKUP_DIR = Path("data/windy_backups")
-UPLOAD_DIR = Path("data/windy_uploads")
+CONFIG_PATH = runtime_config_path("config/windy_layers.json")
+BACKUP_DIR = runtime_path("data/windy_backups")
+UPLOAD_DIR = runtime_path("data/windy_uploads")
 MAX_WINDY_UPLOAD_BYTES = 100 * 1024
 MAX_WINDY_BACKUPS = 10
 REQUIRED_URL_FIELDS = {"lat", "lon", "zoom"}

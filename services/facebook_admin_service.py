@@ -6,15 +6,17 @@ from urllib.parse import parse_qs, urlparse
 from config.settings import get_required_env
 from services.facebook_service import (
     build_facebook_login_url,
+    consume_facebook_oauth_state,
     reconnect_facebook_with_code,
+    safe_facebook_error,
 )
 
 
 def get_admin_connect_url():
-    redirect_uri = get_required_env("FACEBOOK_REDIRECT_URI")
-    parsed = urlparse(redirect_uri)
-
-    return f"{parsed.scheme}://{parsed.netloc}/admin/fb/connect"
+    # Only the authorized Telegram command should initiate reconnect. Returning
+    # the provider URL here prevents an unauthenticated local HTTP GET from
+    # minting a valid callback state.
+    return build_facebook_login_url()
 
 
 def get_admin_server_address():
@@ -70,7 +72,11 @@ class FacebookAdminHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         if parsed.path == "/admin/fb/connect":
-            self.redirect(build_facebook_login_url())
+            self.send_html(
+                403,
+                "Facebook Reconnect Restricted",
+                "Start Facebook reconnect from the authorized Telegram control plane.",
+            )
             return
 
         if parsed.path == "/admin/fb/callback":
@@ -81,10 +87,24 @@ class FacebookAdminHandler(BaseHTTPRequestHandler):
 
     def handle_callback(self, parsed):
         query = parse_qs(parsed.query)
+        state = query.get("state", [None])[0]
+
+        if not consume_facebook_oauth_state(state):
+            self.send_html(
+                400,
+                "Facebook Reconnect Failed",
+                "Invalid or expired reconnect state. Start the reconnect flow again.",
+            )
+            return
+
         error = query.get("error_description") or query.get("error")
 
         if error:
-            self.send_html(400, "Facebook Reconnect Failed", error[0])
+            self.send_html(
+                400,
+                "Facebook Reconnect Failed",
+                safe_facebook_error(error[0]),
+            )
             return
 
         code = query.get("code", [None])[0]
@@ -99,7 +119,7 @@ class FacebookAdminHandler(BaseHTTPRequestHandler):
             self.send_html(
                 500,
                 "Facebook Reconnect Failed",
-                f"Could not save a Page token: {error}",
+                f"Could not save a Page token: {safe_facebook_error(error)}",
             )
             return
 

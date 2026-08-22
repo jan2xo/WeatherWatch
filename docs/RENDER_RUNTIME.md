@@ -1,101 +1,155 @@
-# Render Runtime Evaluation
+# Render Runtime Runbook
 
-This is an engineering compatibility record, not a deployment authorization.
-Render is an additional runtime target; the existing VPS/systemd deployment
-remains supported.
+This is the canonical repository-controlled Render contract. It does not
+authorize deployment and is not evidence that any Render resource exists.
 
-## Evidence-backed topology
+## Service topology
 
-WeatherWatch currently uses one long-lived Python process:
+Use one Render Python web service. Do not add a separate worker or process
+manager:
 
-```text
-core.service
-├── Telegram polling
-├── APScheduler
-├── local admin dashboard and /health
-├── optional Facebook reconnect server
-└── WeatherWatch update pipeline
+- build command: `bash scripts/build_render.sh`
+- start command: `python -m core.service`
+- health path: `/health`
+- Python version: `.python-version` (`3.13`)
+- shutdown allowance: 30 seconds
+- automatic deployment: disabled until the owner authorizes it
+
+The process contains the dashboard/health server, Telegram polling, scheduler,
+Facebook reconnect callback, and update pipeline. Render supplies `PORT`; the
+application binds `0.0.0.0:<PORT>`. Local defaults remain
+`127.0.0.1:8787`.
+
+## Build and Chromium
+
+`scripts/build_render.sh` performs:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip check
+python -m playwright install --with-deps chromium
+python -m compileall -q main.py config core helpers pipelines plugins services storage
 ```
 
-The existing VPS service starts `python -m core.service` and systemd provides
-restart supervision. No separate queue worker or web-only process is currently
-required by the repository. A managed-runtime deployment should therefore use
-the same application entrypoint unless a later scaling requirement proves that
-the topology must split.
-
-## Managed-runtime adapter
-
-The dashboard keeps its existing local defaults (`127.0.0.1:8787`). When an
-explicit `ADMIN_DASHBOARD_HOST` or `ADMIN_DASHBOARD_PORT` is supplied, those
-values win. Otherwise, a generic `PORT` environment variable selects
-`0.0.0.0:<PORT>`, which permits a managed runtime health check without adding a
-provider-specific branch to application logic.
-
-Suggested repository-controlled service settings are:
+Chromium is not assumed to exist. Live WINDY capture still requires target
+certification after deployment. The repository preserves the proven sequence:
 
 ```text
-Build command: python -m pip install -r requirements.txt
-Start command: python -m core.service
-Health path: /health
+navigation -> structural readiness -> 10-second paint settle
+           -> screenshot -> artifact validation
 ```
 
-These are configuration instructions, not a claim that a service has been
-created or deployed.
+## Disk and state topology
 
-## Required external configuration
+The blueprint declares a 1 GB disk mounted at `/var/data/weatherwatch` and sets:
 
-The following values remain external runtime configuration. No values belong in
-source control:
+```text
+WEATHERWATCH_RUNTIME_ROOT=/var/data/weatherwatch
+WEATHERWATCH_STATE_BACKEND=redis
+WEATHERWATCH_REDIS_URL=<owner secret>
+```
 
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-- `TELEGRAM_ALLOWED_CHAT_IDS`
-- `FACEBOOK_PAGE_ID`
-- `FACEBOOK_PAGE_ACCESS_TOKEN` when Facebook publishing is enabled
-- `FACEBOOK_REDIRECT_URI` when reconnect is enabled
-- `ADMIN_DASHBOARD_SECRET` when the dashboard is not loopback-only
-- `WEATHERWATCH_EDITORIAL_MODE` and the repository-controlled AI config
+The responsibilities are different:
 
-Provider credentials, tokens, customer data, and production URLs are not part
-of synthetic verification.
+- Redis-compatible state stores approval/history and Facebook token state
+  (secret token plus public metadata) through the existing `StateRepository`
+  abstraction. Treat the Redis service and its backups as secret-bearing.
+- The disk retains operator-edited runtime JSON configuration, uploads, backups,
+  and regenerable artifacts rooted beneath `WEATHERWATCH_RUNTIME_ROOT`.
+- Screenshots and rendered drafts are regenerable. Their presence must never be
+  treated as proof that approval/publication metadata is durable.
 
-## Filesystem and durability boundary
+A Render persistent disk is runtime-only: it is not mounted during build or
+pre-deploy commands. A disk-backed service is limited to one instance, cannot
+use horizontal scaling, and does not receive zero-downtime deploys. This matches
+WeatherWatch's single-process approval architecture; the owner must account for
+the restart window during deployment certification.
 
-Render services have an ephemeral filesystem unless an explicitly supported
-persistent disk or external durable backend is attached. Therefore:
+Use a managed `rediss://` URL when TLS is required. The adapter supports AUTH,
+optional username, database selection, bounded socket timeouts, and sanitized
+errors. `/health` reports Redis as configured without opening a live connection.
+Connection, backup, restore, and recovery must be certified against the actual
+owner-selected Redis service.
 
-- `storage/approval_state.json` is durable application state and must not be
-  assumed to survive managed-runtime replacement without a durable storage
-  decision;
-- `config/` files are deployment configuration and should be supplied through
-  the built artifact or an approved configuration process;
-- render intermediates, screenshots, temporary uploads, and generated assets
-  are ephemeral;
-- Facebook token state remains owner-secret/external and is not moved into
-  synthetic or generic state storage.
+## Environment contract
 
-P8's `JsonStateRepository` is the compatibility boundary. P9 does not claim a
-cloud database migration or production persistence. A future deployment must
-choose and verify a durable backend before relying on runtime replacement.
+Never put values in Git or `render.yaml`. `sync: false` means the owner supplies
+the value during service creation.
 
-## Health semantics
+Required to start:
 
-`/health` remains secret-free and now distinguishes application liveness,
-durable-state availability, editorial readiness, AI optional/degraded state,
-and publication configuration. Optional AI failure does not make the
-TEMPLATED path unavailable. The existing `ok` field remains conservative for
-operational dependency readiness; `application_alive` is the liveness signal.
+| Variable | Kind | Purpose |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | secret | Telegram polling/delivery |
+| `TELEGRAM_CHAT_ID` | non-secret ID | outbound approval chat |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | non-secret IDs | inbound authorization; must include outbound chat |
+| `FACEBOOK_PAGE_ID` | non-secret ID | configured publication Page |
+| `ADMIN_DASHBOARD_SECRET` | secret | required because `PORT` makes the dashboard public |
+| `WEATHERWATCH_REDIS_URL` | secret | required by blueprint Redis mode |
 
-## Synthetic verification boundary
+Optional or feature-specific:
 
-The P9 runtime check binds the dashboard to an ephemeral local port, exercises
-`/health`, confirms the TEMPLATED configuration remains valid when AI is not
-available, and verifies the state path is isolated. It does not call Telegram,
-Facebook, AI providers, Render, the VPS, or any production system.
+- `TELEGRAM_ALLOWED_USER_IDS`: further restrict users inside allowed chats.
+- `FACEBOOK_PAGE_ACCESS_TOKEN`: Facebook publishing fallback.
+- `FACEBOOK_GRAPH_API_VERSION`: non-secret version selector; the repository
+  default is `v26.0` and must be revalidated during live Facebook certification.
+- `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `FACEBOOK_REDIRECT_URI`: configure
+  all three together for OAuth reconnect. Use exactly the deployed HTTPS URL
+  ending in `/admin/fb/callback`.
+- `WEATHERWATCH_EDITORIAL_MODE`: `templated`, `ai_assisted`, or `automatic`.
+- AI provider enabled/model/timeout variables plus their key and endpoint
+  variables documented in `.env.example` and `docs/AI_EDITORIAL_OPERATIONS.md`.
 
-PR #15 adds an optional Redis-compatible state backend selected by
-`WEATHERWATCH_STATE_BACKEND=redis` and `WEATHERWATCH_REDIS_URL`. Filesystem
-JSON remains the default and VPS-compatible mode. Synthetic tests cover the
-adapter and failure boundaries; production Redis configuration, Render
-persistent wiring, migration, backup/restore, and recovery remain deployment
-verification work and were not performed here.
+The repository blueprint starts in `templated` mode. Do not enable providers or
+choose models until the owner supplies an approved endpoint/model/key set.
+
+## First start
+
+1. Create/configure the service from the reviewed exact revision.
+2. Attach the declared disk and owner-selected Redis-compatible service.
+3. Enter required secrets/IDs; confirm the outbound Telegram chat is allowlisted.
+4. Keep AI in `templated` until provider configuration is intentionally tested.
+5. Start the service with no customer or production publication data.
+6. Check `/health`; treat `application_alive` as liveness and component fields as
+   configuration/readiness evidence, not live-provider certification.
+   Redis mode reports top-level `configured`/`ok: false` until real availability
+   is established outside the cheap health request.
+7. Verify public `/admin` and `/admin/current-image` viewing requires HTTP Basic
+   with the dashboard secret and every mutation requires the same secret.
+   `/health` must remain public and secret-free.
+8. Perform the bounded live checks in `docs/DEPLOYMENT_VERIFICATION.md`.
+
+## Restart behavior
+
+SIGTERM/Ctrl-C lets Telegram polling return, stops APScheduler, then closes the
+Facebook and dashboard HTTP servers with bounded waits. Per-attempt browser
+resources are already closed by the capture boundary. After restart:
+
+- approval and Facebook token state reload through Redis;
+- mutable JSON configuration reloads from the disk-backed runtime root;
+- temporary capture/render work may be regenerated;
+- a failed publication remains explicit and retryable only through the existing
+  approval boundary.
+
+This lifecycle is synthetically verified. Render restart, disk remount, Redis
+recovery, and in-flight job behavior remain live certification debt.
+
+## Certification checklist
+
+- `render.yaml` validates against Render's current Blueprint schema;
+- exact deployed revision recorded;
+- build completes and Chromium exists;
+- process starts and `/health` responds;
+- public dashboard viewing and mutation authorization enforced while `/health`
+  remains public/secret-free;
+- disk path is mounted and writable;
+- Redis TLS/AUTH/database and restart recovery verified;
+- live WINDY capture produces meaningful imagery with canonical framing;
+- real editorial corpus validates;
+- configured AI order/fallback verified without changing weather facts;
+- authorized Telegram commands and shutdown verified;
+- approved-only Facebook publication and reconnect verified;
+- restart, rollback, backup, and recovery evidence recorded.
+
+Until these execute on the actual target, Render implementation and production
+certification remain pending.

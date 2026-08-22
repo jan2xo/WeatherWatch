@@ -1,10 +1,12 @@
+import threading
 from datetime import datetime
-from pathlib import Path
 
+from config.runtime_paths import runtime_path
 from storage.state_repository import get_state_repository
 
 
-STATE_FILE = Path("state/facebook_token_state.json")
+STATE_FILE = runtime_path("state/facebook_token_state.json")
+_STATE_LOCK = threading.RLock()
 
 
 def utc_now():
@@ -27,48 +29,52 @@ def default_state():
 
 
 def load_facebook_token_state():
-    state = get_state_repository(
-        STATE_FILE, state_key="facebook_token_state"
-    ).load(default_state)
-    return {
-        **default_state(),
-        **state,
-    }
+    with _STATE_LOCK:
+        state = get_state_repository(
+            STATE_FILE, state_key="facebook_token_state"
+        ).load(default_state)
+        return {
+            **default_state(),
+            **state,
+        }
 
 
 def save_facebook_token_state(state):
-    get_state_repository(STATE_FILE, state_key="facebook_token_state").save(state)
-    return state
+    with _STATE_LOCK:
+        get_state_repository(STATE_FILE, state_key="facebook_token_state").save(state)
+        return state
 
 
 def save_page_token(page_id, page_name, access_token, token_type="page", source="oauth", pages=None):
-    state = {
-        **load_facebook_token_state(),
-        "page_id": page_id,
-        "page_name": page_name,
-        "access_token": access_token,
-        "token_type": token_type,
-        "last_updated": utc_now(),
-        "source": source,
-        "status": "active",
-        "last_checked": None,
-        "last_error": None,
-        "pages": pages or [],
-    }
+    with _STATE_LOCK:
+        state = {
+            **load_facebook_token_state(),
+            "page_id": page_id,
+            "page_name": page_name,
+            "access_token": access_token,
+            "token_type": token_type,
+            "last_updated": utc_now(),
+            "source": source,
+            "status": "active",
+            "last_checked": None,
+            "last_error": None,
+            "pages": pages or [],
+        }
 
-    return save_facebook_token_state(state)
+        return save_facebook_token_state(state)
 
 
 def update_token_health(status, last_error=None, page_name=None):
-    state = load_facebook_token_state()
-    state["status"] = status
-    state["last_checked"] = utc_now()
-    state["last_error"] = last_error
+    with _STATE_LOCK:
+        state = load_facebook_token_state()
+        state["status"] = status
+        state["last_checked"] = utc_now()
+        state["last_error"] = last_error
 
-    if page_name:
-        state["page_name"] = page_name
+        if page_name:
+            state["page_name"] = page_name
 
-    return save_facebook_token_state(state)
+        return save_facebook_token_state(state)
 
 
 def public_token_state(state=None):

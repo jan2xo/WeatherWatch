@@ -1,8 +1,8 @@
 # WeatherWatch Roadmap
 
-Version: 1.0 planning baseline
-Planning branch: `docs/weatherwatch-editorial-ai-runtime-roadmap`
-Base `main`: `bc29311a55f5d8b30941a5d209826ad8ec520be0`
+Version: 1.0 roadmap with pre-runtime convergence status
+Historical planning branch: `docs/weatherwatch-editorial-ai-runtime-roadmap`
+Historical planning base: `bc29311a55f5d8b30941a5d209826ad8ec520be0`
 
 This roadmap is a planning document. It does not authorize feature implementation by itself. Each implementation lane requires an approved bounded task, repository inspection, worker-loop verification, independent review, and the applicable convergence or certification gate.
 
@@ -28,11 +28,13 @@ Facebook publication
 
 PAGASA remains the meteorological authority. WeatherWatch owns ingestion, parsing, normalization, editorial workflow, rendering, approval, and publication. AI is an editorial writer, not a weather authority. Human approval remains the final editorial authority.
 
-Existing CLI/headless operation, Telegram approval, local dashboard, health/status behavior, rendering, Facebook publishing, and VPS support are preserved. Render is an additional runtime target to evaluate, not an automatic replacement.
+Existing CLI/headless operation, Telegram approval, local dashboard, health/status behavior, rendering, Facebook publishing, and VPS support are preserved. Render now has a repository-controlled deployment contract, but service creation, configuration, and live certification remain owner-controlled and have not occurred.
 
-## Repository reality baseline
+## Historical planning baseline and preserved architecture
 
-The current repository is a Python modular service application.
+The planning audit established the Python modular service architecture below.
+Later status sections record the repository-controlled implementation completed
+since that baseline.
 
 - `main.py` starts `WeatherWatchService`; `python -m core.service` is the documented production entry point.
 - `core/app.py` orchestrates updates, the WINDY map source, PAGASA fetch, and the weather pipeline.
@@ -47,9 +49,11 @@ The current repository is a Python modular service application.
 - Telegram approval supports update, status, approve, text approve, reject, publish retry, modify, image, template, composer, scheduler, language, Windy, and Facebook administration commands.
 - The local dashboard and health/control-plane routes exist and must be extended only where bounded additions are needed.
 - Facebook publishing and token administration exist through `services/facebook_service.py`, `facebook_admin_service.py`, and the approval workflow.
-- Persistence is currently file-based: approval state/history and Facebook token state use repository/runtime filesystem paths; retention handles temporary/manual files. Durable-state design is therefore a real cloud-runtime concern, not an assumed existing database capability.
+- Approval state/history and Facebook token state use the canonical `StateRepository`, with filesystem JSON as the local default and Redis-compatible external state for managed runtimes. `WEATHERWATCH_RUNTIME_ROOT` relocates mutable configuration and artifacts to an absolute runtime root. Production Redis, disk, backup, and recovery behavior remain live-runtime concerns.
 - VPS support is explicit: ZIP packaging, installer/verification scripts, an example systemd service, and `docs/VPS_DEPLOYMENT.md`. Production secrets are external.
-- No `.github/workflows/*` files were present at this baseline. CI economy work must therefore design the first workflow deliberately rather than optimize an existing workflow.
+- No `.github/workflows/*` files were present at the historical planning
+  baseline. The repository now has hosted convergence that runs every
+  `tests/verify_*.py` verifier.
 - Current documentation is stronger than the small top-level roadmap: the feature guide records the active flow, interfaces, configurations, and known provider limitations. The implementation roadmap below uses that guide and source evidence as the baseline.
 
 ## Architecture boundaries
@@ -69,7 +73,7 @@ A mode failure must not destroy the other mode. The existing approval workflow r
 
 ### Runtime boundary
 
-A disposable engineering/certification environment may build, test, seed, render, and certify the real subject using disposable state. A persistent VPS or future Render deployment contains only runtime capabilities and persistent state required for operation, observability, security, deployment, rollback, backup/recovery, and maintenance. Production infrastructure is included in engineering certification only when its behavior is itself relevant.
+A disposable engineering/certification environment may build, test, seed, render, and certify the real subject using disposable state. A persistent VPS or owner-authorized Render deployment contains only runtime capabilities and persistent state required for operation, observability, security, deployment, rollback, backup/recovery, and maintenance. Production infrastructure is included in engineering certification only when its behavior is itself relevant.
 
 ### Source and evidence boundary
 
@@ -123,7 +127,7 @@ This roadmap is actively executing through bounded implementation PRs.
 - P9 — COMPLETE: Render-compatible runtime requirements, generic managed-runtime port binding, health semantics, filesystem/durability boundary, and synthetic startup verification are documented without replacing VPS support or claiming deployment.
 - P10 — COMPLETE: minimum path-filtered, ready-for-review/workflow-dispatch convergence workflow is merged; full synthetic certification remains separate.
 - P11 — COMPLETE: integrated synthetic certification passed across real parser/composer/editorial/state/health boundaries with synthetic peripheral providers.
-- P12 — BLOCKED: repository-controlled deployment verification boundary and checklist are prepared; real deployment requires owner-controlled runtime authorization, durable storage, and secrets.
+- P12 — READY FOR OWNER EXECUTION: repository-controlled Render blueprint, build/start contract, durable-state/runtime-root boundary, lifecycle handling, and deployment checklist are implemented synthetically. Real deployment requires owner-controlled runtime authorization, infrastructure, credentials, content, and live evidence.
 
 Production deployment and production certification have not occurred. TEMPLATED remains the deterministic fallback; AI output is not meteorological authority.
 
@@ -136,6 +140,21 @@ behind runtime credentials, and the existing pipeline now routes AI-assisted or
 automatic requests through validation/provenance before approval. Provider
 failure falls back visibly to TEMPLATED; no production provider call or
 deployment certification has been performed.
+
+## Pre-runtime convergence
+
+The repository-controlled managed-runtime implementation is complete for the
+candidate: deterministic Render build/start/health configuration, Chromium
+installation, disk-backed runtime root, Redis-compatible durable metadata,
+bounded lifecycle shutdown, communication authorization/redaction, strict
+editorial-memory operations, and hosted synthetic convergence. WINDY remains
+the sole map provider and preserves the verified structural-readiness plus
+10-second paint-settle sequence.
+
+Remaining work is exclusively owner/runtime controlled: create/configure
+Render, wire and recover production Redis, certify live Chromium/WINDY, choose
+actual AI endpoints/models/keys, populate real approved memory, verify live
+Telegram and Facebook, exercise restart/recovery, and certify production.
 
 ## Roadmap phases
 
@@ -321,7 +340,9 @@ deployment certification has been performed.
 
 ### Phase 10 — CI Verification Economy
 
-**Why:** The repository currently has no `.github/workflows` baseline. CI must be designed as a deliberate convergence/certification gate, not an editing loop.
+**Why:** At the historical baseline the repository had no GitHub Actions
+workflow. CI therefore had to be introduced as a deliberate
+convergence/certification gate, not an editing loop.
 
 **Dependencies:** Phases 1–9 as applicable. CI tiers must be mapped to real repository commands, deterministic fixtures, runtime boundaries, and certification gates rather than assumed infrastructure.
 

@@ -1,13 +1,13 @@
 import threading
 import os  # compatibility surface used by existing atomic-write safety tests
-from pathlib import Path
 from datetime import datetime, timedelta
 
+from config.runtime_paths import runtime_path
 from services.post_type_config_service import get_job_post_type_defaults
 from storage.state_repository import get_state_repository
 
 
-STATE_FILE = Path("state/approval_state.json")
+STATE_FILE = runtime_path("state/approval_state.json")
 HISTORY_RETENTION_DAYS = 7
 HISTORY_DATE_FIELDS = [
     "posted_at",

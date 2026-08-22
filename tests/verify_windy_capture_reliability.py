@@ -31,8 +31,8 @@ class FakePage:
     def wait_for_timeout(self, timeout):
         self.events.append(("paint_settle", timeout))
 
-    def screenshot(self, path):
-        self.events.append(("screenshot", path))
+    def screenshot(self, path, timeout):
+        self.events.append(("screenshot", path, timeout))
         if self.failure_stage == "screenshot":
             raise RuntimeError("synthetic screenshot failure")
         if self.output_mode == "corrupt":
@@ -81,10 +81,10 @@ class FakeChromium:
         self.lifecycles = lifecycles
         self.events = events
 
-    def launch(self, headless):
+    def launch(self, headless, timeout):
         attempt = len(self.lifecycles)
         spec = self.attempt_specs[attempt]
-        self.events.append(("launch", headless))
+        self.events.append(("launch", headless, timeout))
         if spec.get("failure_stage") == "browser_start":
             self.lifecycles.append((None, None, None))
             raise RuntimeError("synthetic browser startup failure")

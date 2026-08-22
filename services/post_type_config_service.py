@@ -4,9 +4,11 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from config.runtime_paths import runtime_config_path
+
 
 LOGGER = logging.getLogger(__name__)
-CONFIG_PATH = Path("config/post_types.json")
+CONFIG_PATH = runtime_config_path("config/post_types.json")
 SUPPORTED_POST_TYPES = {"image", "text"}
 DEFAULT_CONFIG = {
     "version": "1.0",

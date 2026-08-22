@@ -5,10 +5,12 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from config.runtime_paths import runtime_config_path, runtime_path
 
-CONFIG_PATH = Path("config/scheduler.json")
-BACKUP_DIR = Path("data/scheduler_backups")
-UPLOAD_DIR = Path("data/scheduler_uploads")
+
+CONFIG_PATH = runtime_config_path("config/scheduler.json")
+BACKUP_DIR = runtime_path("data/scheduler_backups")
+UPLOAD_DIR = runtime_path("data/scheduler_uploads")
 MAX_SCHEDULER_UPLOAD_BYTES = 100 * 1024
 MAX_SCHEDULER_BACKUPS = 10
 SUPPORTED_ACTIONS = {"weather_update"}

@@ -1,4 +1,8 @@
 from pathlib import Path
+import re
+import secrets
+import threading
+import time
 from urllib.parse import urlencode
 
 import requests
@@ -19,7 +23,7 @@ from storage.approval_store import (
 )
 
 
-GRAPH_API_VERSION = "v20.0"
+GRAPH_API_VERSION = get_optional_env("FACEBOOK_GRAPH_API_VERSION") or "v26.0"
 GRAPH_API_BASE_URL = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 FACEBOOK_LOGIN_URL = f"https://www.facebook.com/{GRAPH_API_VERSION}/dialog/oauth"
 FACEBOOK_SCOPES = [
@@ -27,6 +31,57 @@ FACEBOOK_SCOPES = [
     "pages_read_engagement",
     "pages_manage_posts",
 ]
+FACEBOOK_OAUTH_STATE_TTL_SECONDS = 600
+FACEBOOK_OAUTH_STATE_LIMIT = 16
+_pending_oauth_states = {}
+_oauth_state_lock = threading.Lock()
+
+
+def safe_facebook_error(error):
+    text = str(error).splitlines()[0] if str(error).splitlines() else "Facebook request failed"
+    for name in (
+        "FACEBOOK_APP_SECRET",
+        "FACEBOOK_PAGE_ACCESS_TOKEN",
+    ):
+        secret = get_optional_env(name)
+        if secret:
+            text = text.replace(secret, "<hidden>")
+    text = re.sub(
+        r"(?i)(access[_ -]?token|fb_exchange_token|client_secret|app_secret|code)"
+        r"(\s*[=:]\s*)[^\s&]+",
+        r"\1\2<hidden>",
+        text,
+    )
+    text = re.sub(r"\bEA[A-Za-z0-9_-]{20,}\b", "<hidden>", text)
+    text = re.sub(r"(?i)(/bot)[^/\s]+/", r"\1<hidden>/", text)
+    return text[:300]
+
+
+def create_facebook_oauth_state(now=None):
+    current_time = time.time() if now is None else float(now)
+    state = secrets.token_urlsafe(32)
+    with _oauth_state_lock:
+        expired = [
+            key
+            for key, expires_at in _pending_oauth_states.items()
+            if expires_at <= current_time
+        ]
+        for key in expired:
+            _pending_oauth_states.pop(key, None)
+        while len(_pending_oauth_states) >= FACEBOOK_OAUTH_STATE_LIMIT:
+            oldest = min(_pending_oauth_states, key=_pending_oauth_states.get)
+            _pending_oauth_states.pop(oldest, None)
+        _pending_oauth_states[state] = current_time + FACEBOOK_OAUTH_STATE_TTL_SECONDS
+    return state
+
+
+def consume_facebook_oauth_state(state, now=None):
+    if not state:
+        return False
+    current_time = time.time() if now is None else float(now)
+    with _oauth_state_lock:
+        expires_at = _pending_oauth_states.pop(str(state), None)
+    return bool(expires_at and expires_at > current_time)
 
 
 def safe_graph_error(response):
@@ -36,7 +91,9 @@ def safe_graph_error(response):
         return f"HTTP {response.status_code}"
 
     error = data.get("error", {})
-    message = error.get("message") or response.reason or "Facebook request failed"
+    message = safe_facebook_error(
+        error.get("message") or response.reason or "Facebook request failed"
+    )
     code = error.get("code")
 
     if code:
@@ -59,7 +116,7 @@ def get_facebook_config():
             update_token_health("active", page_name=page_data.get("name"))
             return page_id, token_state["access_token"]
         except Exception as error:
-            update_token_health("invalid", last_error=str(error))
+            update_token_health("invalid", last_error=safe_facebook_error(error))
 
     fallback = get_optional_env("FACEBOOK_PAGE_ACCESS_TOKEN")
 
@@ -89,14 +146,15 @@ def get_app_access_token():
     return f"{config['app_id']}|{config['app_secret']}"
 
 
-def build_facebook_login_url(state="weatherwatch"):
+def build_facebook_login_url():
     config = get_facebook_oauth_config()
+    oauth_state = create_facebook_oauth_state()
     query = urlencode({
         "client_id": config["app_id"],
         "redirect_uri": config["redirect_uri"],
         "scope": ",".join(FACEBOOK_SCOPES),
         "response_type": "code",
-        "state": state,
+        "state": oauth_state,
     })
 
     return f"{FACEBOOK_LOGIN_URL}?{query}"
@@ -314,7 +372,10 @@ def check_facebook_token_health():
 
     except Exception as error:
         if source == "token_store":
-            state = update_token_health("invalid", last_error=str(error))
+            state = update_token_health(
+                "invalid",
+                last_error=safe_facebook_error(error),
+            )
             return {
                 **public_token_state(state),
                 "configured_page_id": page_id,
@@ -330,7 +391,7 @@ def check_facebook_token_health():
             "source": source,
             "status": "invalid",
             "last_checked": utc_now(),
-            "last_error": str(error),
+            "last_error": safe_facebook_error(error),
         }
 
 
@@ -367,7 +428,7 @@ def publish_photo_post(image_path: str, caption: str):
     if not image_file.exists():
         raise FileNotFoundError(f"Facebook image not found: {image_file}")
 
-    url = f"https://graph.facebook.com/v20.0/{page_id}/photos"
+    url = f"{GRAPH_API_BASE_URL}/{page_id}/photos"
 
     with image_file.open("rb") as photo:
         response = requests.post(

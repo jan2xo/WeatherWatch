@@ -1,0 +1,50 @@
+version: "1"
+
+services:
+  - type: web
+    name: weatherwatch
+    runtime: python
+    buildCommand: bash scripts/build_render.sh
+    startCommand: python -m core.service
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    maxShutdownDelaySeconds: 30
+    disk:
+      name: weatherwatch-runtime
+      mountPath: /var/data/weatherwatch
+      sizeGB: 1
+    envVars:
+      - key: ADMIN_DASHBOARD_ENABLED
+        value: "true"
+      - key: ADMIN_DASHBOARD_SECRET
+        generateValue: true
+      - key: WEATHERWATCH_STATE_BACKEND
+        value: redis
+      - key: WEATHERWATCH_RUNTIME_ROOT
+        value: /var/data/weatherwatch
+      - key: WEATHERWATCH_REDIS_URL
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: TELEGRAM_ALLOWED_CHAT_IDS
+        sync: false
+      - key: FACEBOOK_PAGE_ID
+        sync: false
+      - key: FACEBOOK_PAGE_ACCESS_TOKEN
+        sync: false
+      - key: FACEBOOK_GRAPH_API_VERSION
+        value: v26.0
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: FACEBOOK_REDIRECT_URI
+        sync: false
+      - key: WEATHERWATCH_EDITORIAL_MODE
+        value: templated
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

@@ -59,7 +59,9 @@ It:
 - sends a Telegram startup notification;
 - runs Telegram long polling with indefinite bootstrap retries;
 - masks Telegram bot tokens in console error summaries;
-- shuts down local HTTP servers on exit.
+- stops the scheduler and shuts down HTTP servers with bounded waits after
+  Telegram polling returns on Ctrl-C/SIGTERM;
+- cleans up successfully started resources after partial-start failures.
 
 ### `deploy/weatherwatch.service.example`
 
@@ -826,15 +828,20 @@ Features:
 - photo upload;
 - 1024-character photo-caption fallback;
 - separate full preview message when the caption is too long.
+- outbound chat validation against `TELEGRAM_ALLOWED_CHAT_IDS`;
+- status-only HTTP failures and credential-free network error summaries.
 
 `core/telegram_listener.py` uses `python-telegram-bot` for incoming commands;
-this service uses `requests` for outgoing job delivery.
+this service uses `requests` for outgoing job delivery. Every registered
+command, including `/start`, `/status`, `/ai_status`, and `/memory_status`, is
+protected by the allowed-chat and optional allowed-user boundary.
 
 ## 13. Approval and Persistence
 
 ### `storage/approval_store.py`
 
-Persists the singleton approval system in:
+Persists the singleton approval system through `StateRepository`, using local
+filesystem JSON by default and Redis-compatible external state when configured:
 
 ```text
 state/approval_state.json
@@ -913,6 +920,7 @@ Provides:
 - native text publishing through the Page feed endpoint;
 - post-type dispatch without changing the photo upload implementation;
 - approval-state transitions.
+- one-time, expiring OAuth reconnect state and sanitized provider errors.
 
 Caption source priority:
 
@@ -989,7 +997,7 @@ not add multi-platform text publishing.
 
 ### `storage/facebook_token_store.py`
 
-Persists Page-token state in:
+Persists Page-token state through the same `StateRepository` backend in:
 
 ```text
 state/facebook_token_state.json
@@ -1005,7 +1013,9 @@ Runs the local OAuth routes:
 - `/admin/fb/connect`
 - `/admin/fb/callback`
 
-It exchanges the callback code and saves the selected configured Page token.
+Reconnect initiation belongs to the authorized Telegram control plane. The
+callback consumes a one-time state before exchanging the code and saving the
+selected configured Page token. The shared dashboard applies the same boundary.
 
 ## 15. Local Dashboard
 
@@ -1038,11 +1048,18 @@ Displayed health includes:
 - state-file existence;
 - framing decision;
 - safe last error.
+- secret-free environment contract status, capture capability, editorial
+  configuration, and state-backend configured/readiness distinctions.
 
-State-changing requests require `ADMIN_DASHBOARD_SECRET` when configured. The
-secret may be supplied through the form or `X-WW-Admin-Secret` header and is
-never returned in HTML or health JSON. Without a configured secret, POST
-actions are allowed only when the dashboard bind host is loopback.
+Health performs no routine live WINDY, Redis, Telegram, Facebook, or AI request.
+Credential presence means configured, not externally certified.
+
+When publicly bound, `/admin` and `/admin/current-image` viewing require HTTP
+Basic authentication using `ADMIN_DASHBOARD_SECRET`; state-changing requests
+require the same secret through the form or `X-WW-Admin-Secret` header. The
+secret is never returned in HTML or health JSON. `/health` remains public and
+secret-free. Without a configured secret, dashboard viewing and actions are
+allowed only when the bind host is loopback.
 
 Defaults:
 
@@ -1088,7 +1105,13 @@ runtime selectors and remain argument-based.
 ### `config/settings.py`
 
 Loads `.env`, validates required runtime values, and parses Telegram allowlist
-IDs.
+IDs. The outbound chat must be allowlisted; a public dashboard requires its
+secret; Redis mode requires its URL; Facebook reconnect variables must be
+configured together; managed ports, editorial mode, and absolute runtime-root
+shape are validated before startup. `FACEBOOK_GRAPH_API_VERSION` is a
+non-secret optional selector and defaults to the repository-certified `v26.0`.
+The reconnect URI must end exactly in `/admin/fb/callback` and cannot contain
+embedded credentials, a query, or a fragment.
 
 Required at startup:
 
@@ -1098,6 +1121,10 @@ Required at startup:
 - `FACEBOOK_PAGE_ID`
 
 Optional/feature-dependent values are documented in `.env.example`.
+
+`WEATHERWATCH_RUNTIME_ROOT` relocates mutable config, state, uploads, backups,
+and output beneath an absolute runtime directory. Local behavior is unchanged
+when it is unset.
 
 ### `.env.example`
 
@@ -1115,6 +1142,8 @@ dashboard environment keys. Never put production secrets in this example.
 | `config/language_normalization.json` | PAGASA area phrase body/headline/short forms |
 | `config/post_types.json` | Enabled Facebook publishing types and default selection |
 | `config/windy_layers.json` | Windy layer URL patterns, defaults, and suggestions |
+| `config/ai_editorial.json` | Provider order, enabled defaults, credential references, fallback policy |
+| `config/editorial_memory.json` | Owner-approved editorial precedent |
 
 Telegram upload families write only to their fixed active config file and use
 generated names in fixed runtime upload folders.
@@ -1164,6 +1193,15 @@ Builds versioned release ZIPs while excluding:
 Installation, ZIP upload, `.env`, systemd, logs, SSH dashboard tunnel,
 backups, rollback, and security guidance.
 
+### Render managed runtime
+
+`render.yaml` declares one Python web service, `bash scripts/build_render.sh`,
+`python -m core.service`, `/health`, a disk-backed
+`/var/data/weatherwatch` runtime root, Redis state mode, and owner-supplied
+secrets. The build script installs pinned requirements and Playwright Chromium.
+See `docs/RENDER_RUNTIME.md`. These files prepare deployment; they do not prove
+that Render or any external integration has been configured.
+
 ## 18. Tests and Verification
 
 | File | Coverage |
@@ -1181,25 +1219,20 @@ backups, rollback, and security guidance.
 | `tests/verify_windy_layers.py` | Windy layer validation, URLs, framing, suggestions, metadata, and dashboard security |
 | `tests/verify_approval_state_safety.py` | Atomic state writes, malformed reads, failed replacement, and concurrent updates |
 | `tests/verify_telegram_intent_commands.py` | Explicit command maps, shared-service dispatch, aliases, and manual coverage |
+| `tests/verify_managed_runtime_configuration.py` | Render blueprint, build/start, disk/runtime-root, environment and port contract |
+| `tests/verify_browser_runtime_contract.py` | Container-safe Chromium launch, bounded controls, capture sequence and cleanup |
+| `tests/verify_redis_runtime_readiness.py` | URL/TLS/AUTH/database/timeouts, secret-free health, runtime root and concurrency |
+| `tests/verify_editorial_memory_operations.py` | Provider overrides, strict memory schema/CLI, runtime seed and bounded retrieval |
+| `tests/verify_communication_runtime_boundaries.py` | Telegram authorization/delivery and Facebook OAuth/publication boundaries |
+| `tests/verify_service_lifecycle.py` | Partial startup, Ctrl-C, scheduler and bounded HTTP shutdown |
 | `test_forecast.py` | Manual live PAGASA fetch smoke script |
 
 Run the local verification set:
 
 ```bash
-.venv/bin/python tests/verify_forecast_parser.py
-.venv/bin/python tests/verify_content_composer.py
-.venv/bin/python tests/verify_content_composer_config.py
-.venv/bin/python tests/verify_template_guardrails.py
-.venv/bin/python tests/verify_image_rendering.py
-.venv/bin/python tests/verify_map_framing.py
-.venv/bin/python tests/verify_scheduler_config.py
-.venv/bin/python tests/verify_dashboard_control_plane.py
-.venv/bin/python tests/verify_language_normalization.py
-.venv/bin/python tests/verify_text_post_publisher.py
-.venv/bin/python tests/verify_windy_layers.py
-.venv/bin/python tests/verify_approval_state_safety.py
-.venv/bin/python tests/verify_telegram_intent_commands.py
-.venv/bin/python -m compileall core services pipelines storage config tests
+for verifier in tests/verify_*.py; do .venv/bin/python "$verifier"; done
+.venv/bin/python -m compileall -q core services pipelines storage config tests tools
+git diff --check
 ```
 
 `test_forecast.py` requires network access.
@@ -1245,14 +1278,17 @@ Runtime-only locations:
 - Region plugin modules are placeholders.
 - `services/approval_bot.py` is legacy and separate from the active workflow.
 - `services/approval_service.py` and `services/publish_service.py` are empty.
-- Provider capture uses a fixed 10-second wait rather than readiness detection.
-- Document-caption routing explicitly supports `/composer_upload`,
-  `/image_upload`, and `/scheduler_upload`; `/template_upload` still uses its older command-handler
-  path and should be aligned before relying on document-caption uploads.
-- Config JSON persistence is file-based and intended for one process.
+- Provider capture uses both structural readiness and the empirically required
+  10-second WINDY paint settle; semantic live imagery still requires runtime
+  certification.
+- Mutable config JSON is disk-backed when `WEATHERWATCH_RUNTIME_ROOT` is set and
+  remains designed for one service process.
 - Dashboard forms use a shared secret rather than user accounts or sessions.
-- `OPENAI_API_KEY` exists in `.env.example`, but the current content path is
-  deterministic; no active OpenAI call is present.
+- AI adapters are operational only when the owner explicitly enables a provider
+  and supplies its endpoint, model, and credential; live providers are not
+  repository-certified.
+- Render, Redis recovery, live Telegram/Facebook, and production operation remain
+  owner-controlled certification work.
 
 ## 21. Extension Checklist
 
