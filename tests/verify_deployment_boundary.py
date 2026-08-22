@@ -9,9 +9,12 @@ def main():
     document = (root / "docs/DEPLOYMENT_VERIFICATION.md").read_text(encoding="utf-8")
     assert "application_alive" in document
     assert "owner-controlled" in document
-    assert "Repository implementation: complete candidate" in document
-    assert "Render service creation/configuration: pending" in document
-    assert "Render Chromium/WINDY live certification: pending" in document
+    assert "Native Render Python/Playwright contract: **FAILED and retired**" in document
+    assert "Repository Docker verification: pending" in document
+    assert "Existing Render development service Docker redeployment: pending" in document
+    assert "Render Docker process and `/health`: pending" in document
+    assert "Render Chromium launch: pending" in document
+    assert "Live WINDY imagery/framing: pending" in document
     assert "Production Redis wiring/recovery: pending" in document
     assert "Actual AI provider/model/key configuration: pending" in document
     assert "Real editorial memory population: pending" in document

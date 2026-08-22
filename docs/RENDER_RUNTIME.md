@@ -1,43 +1,109 @@
-# Render Runtime Runbook
+# Render Docker Runtime Runbook
 
 This is the canonical repository-controlled Render contract. It does not
-authorize deployment and is not evidence that any Render resource exists.
+authorize deployment, mutate the existing `weatherwatch-dev` service, or prove
+that a Docker image has run on Render.
+
+## Why the runtime is Docker-based
+
+The first real Render development deployment used the former P21 native Python
+contract:
+
+```text
+build: bash scripts/build_render.sh
+start: python -m core.service
+```
+
+The build installed Python dependencies, then failed at:
+
+```text
+python -m playwright install --with-deps chromium
+Switching to root user to install dependencies...
+Password:
+su: Authentication failure
+Failed to install browsers
+```
+
+`--with-deps` installs Linux packages as well as browser binaries. GitHub
+Actions permitted that privileged package installation; Render's native Python
+build environment did not. The passing GitHub job therefore proved the script
+only in its own runner, not in Render. Native Render installation of Chromium
+system dependencies is no longer part of the WeatherWatch deployment contract.
 
 ## Service topology
 
-Use one Render Python web service. Do not add a separate worker or process
-manager:
+Use one Render Docker web service. Do not add a separate worker, browser
+sidecar, or process manager:
 
-- build command: `bash scripts/build_render.sh`
-- start command: `python -m core.service`
-- health path: `/health`
-- Python version: `.python-version` (`3.13`)
-- shutdown allowance: 30 seconds
-- automatic deployment: disabled until the owner authorizes it
+- Blueprint service name: `weatherwatch-dev`, matching the existing development
+  target rather than creating a parallel service;
+- instance plan: `starter`, because Render persistent disks require paid
+  compute; applying the Blueprint can therefore upgrade an existing free
+  development service and the owner must review the resulting cost first;
+- build artifact: repository-root `Dockerfile`;
+- base: Microsoft Playwright Python `v1.60.0-noble`, pinned by digest;
+- Python: 3.12, matching the image and `.python-version`;
+- runtime user: the image's unprivileged `pwuser`;
+- start command: `python -m core.service`;
+- health path: `/health`;
+- shutdown allowance: 30 seconds;
+- automatic deployment: disabled until the owner authorizes it.
 
 The process contains the dashboard/health server, Telegram polling, scheduler,
 Facebook reconnect callback, and update pipeline. Render supplies `PORT`; the
 application binds `0.0.0.0:<PORT>`. Local defaults remain
 `127.0.0.1:8787`.
 
-## Build and Chromium
+## Docker, Playwright, and Chromium
 
-`scripts/build_render.sh` performs:
+The Dockerfile pins `mcr.microsoft.com/playwright/python:v1.60.0-noble` by
+immutable digest. Its Playwright release matches `playwright==1.60.0` in
+`requirements.txt`. The image supplies Chromium browser binaries, Linux shared
+libraries, and fonts; the Python Playwright package is installed separately
+from the repository's pinned requirements. Matching these versions is required:
+a mismatched Playwright client may not locate the image's browser executable.
 
-```bash
-python -m pip install -r requirements.txt
-python -m pip check
-python -m playwright install --with-deps chromium
-python -m compileall -q main.py config core helpers pipelines plugins services storage
-```
+System dependency installation is already represented by the immutable base
+image. The container entrypoint starts with only enough privilege to repair
+ownership of the fixed `/var/data/weatherwatch` mount (which can mask image-time
+ownership), then replaces PID 1 with WeatherWatch as `pwuser`. It never derives
+the privileged target from an environment variable. The running application
+does not perform `apt`, `su`, `playwright install --with-deps`, or other package
+installation. `HOME` is explicitly `/home/pwuser`, keeping browser/Python caches
+out of `/root`; the application writes only to the paths described below.
 
-Chromium is not assumed to exist. Live WINDY capture still requires target
-certification after deployment. The repository preserves the proven sequence:
+The Docker image makes Chromium available; it does not certify that Chromium
+can launch under Render's live container constraints or that WINDY imagery
+paints correctly. The capture sequence remains unchanged:
 
 ```text
 navigation -> structural readiness -> 10-second paint settle
            -> screenshot -> artifact validation
 ```
+
+Do not add `--no-sandbox`, privileged containers, or broad Linux capabilities
+without a separately reviewed need supported by live evidence.
+
+## Build and start
+
+Render builds the repository Dockerfile and starts its declared `CMD`. There is
+no native Render `buildCommand`, and Render must not call
+`scripts/build_render.sh`. That script is retained only as a host engineering
+dependency/compile verifier; it does not install browsers or Linux packages.
+
+For repository engineering, build the same artifact:
+
+```bash
+docker build --tag weatherwatch:p22 .
+```
+
+The hosted convergence workflow performs a bounded container health/shutdown
+smoke test with synthetic configuration, a root-owned Docker volume at the
+canonical disk path, an explicit non-root PID 1 assertion, and no external
+network access. Do not pass production credentials as Docker build arguments or
+bake `.env` files into layers. `.dockerignore` excludes local environments,
+credentials, runtime artifacts, caches, editor files, and Git metadata from the
+build context.
 
 ## Disk and state topology
 
@@ -59,11 +125,16 @@ The responsibilities are different:
 - Screenshots and rendered drafts are regenerable. Their presence must never be
   treated as proof that approval/publication metadata is durable.
 
-A Render persistent disk is runtime-only: it is not mounted during build or
-pre-deploy commands. A disk-backed service is limited to one instance, cannot
-use horizontal scaling, and does not receive zero-downtime deploys. This matches
-WeatherWatch's single-process approval architecture; the owner must account for
-the restart window during deployment certification.
+The container filesystem is ephemeral. A `VOLUME` declaration or a path inside
+the image would not create Render durability; only the attached Render disk
+backs `/var/data/weatherwatch`. A Render persistent disk is runtime-only: it is
+not mounted during image build or pre-deploy commands. A disk-backed service is
+limited to one instance, cannot use horizontal scaling, and does not receive
+zero-downtime deploys. This matches WeatherWatch's single-process approval
+architecture; the owner must account for the restart window during deployment
+certification. Render disks are available only on paid compute, so the checked-in
+Blueprint explicitly selects `starter`; this is a repository contract, not an
+authorization to apply billing changes before owner review.
 
 Use a managed `rediss://` URL when TLS is required. The adapter supports AUTH,
 optional username, database selection, bounded socket timeouts, and sanitized
@@ -73,10 +144,11 @@ owner-selected Redis service.
 
 ## Environment contract
 
-Never put values in Git or `render.yaml`. `sync: false` means the owner supplies
-the value during service creation.
+Never put secret values in Git, the Dockerfile, image build arguments, image
+layers, or `render.yaml`. `sync: false` means the owner supplies the value during
+service creation or configuration.
 
-Required to start:
+Required to start the managed configuration:
 
 | Variable | Kind | Purpose |
 | --- | --- | --- |
@@ -103,21 +175,23 @@ Optional or feature-specific:
 The repository blueprint starts in `templated` mode. Do not enable providers or
 choose models until the owner supplies an approved endpoint/model/key set.
 
-## First start
+## First Docker redeployment
 
-1. Create/configure the service from the reviewed exact revision.
-2. Attach the declared disk and owner-selected Redis-compatible service.
-3. Enter required secrets/IDs; confirm the outbound Telegram chat is allowlisted.
-4. Keep AI in `templated` until provider configuration is intentionally tested.
-5. Start the service with no customer or production publication data.
-6. Check `/health`; treat `application_alive` as liveness and component fields as
-   configuration/readiness evidence, not live-provider certification.
-   Redis mode reports top-level `configured`/`ok: false` until real availability
-   is established outside the cheap health request.
-7. Verify public `/admin` and `/admin/current-image` viewing requires HTTP Basic
+1. Review and merge the exact Docker-remediation revision; record its SHA.
+2. Apply the reviewed `render.yaml` Docker service contract to the existing
+   development workspace without copying the obsolete native build command.
+3. Confirm the declared disk and owner-selected Redis-compatible service.
+4. Enter required secrets/IDs; confirm the outbound Telegram chat is allowlisted.
+5. Keep AI in `templated` until provider configuration is intentionally tested.
+6. Deploy with no customer or production publication data.
+7. Check `/health`; treat `application_alive` as liveness and component fields as
+   configuration/readiness evidence, not live-provider certification. Redis mode
+   reports top-level `configured`/`ok: false` until real availability is
+   established outside the cheap health request.
+8. Verify public `/admin` and `/admin/current-image` viewing requires HTTP Basic
    with the dashboard secret and every mutation requires the same secret.
    `/health` must remain public and secret-free.
-8. Perform the bounded live checks in `docs/DEPLOYMENT_VERIFICATION.md`.
+9. Perform the bounded live checks in `docs/DEPLOYMENT_VERIFICATION.md`.
 
 ## Restart behavior
 
@@ -131,25 +205,34 @@ resources are already closed by the capture boundary. After restart:
 - a failed publication remains explicit and retryable only through the existing
   approval boundary.
 
-This lifecycle is synthetically verified. Render restart, disk remount, Redis
-recovery, and in-flight job behavior remain live certification debt.
+This lifecycle is synthetically verified. Render Docker shutdown, disk remount,
+Redis recovery, and in-flight job behavior remain live certification debt.
 
-## Certification checklist
+## Certification status and checklist
 
-- `render.yaml` validates against Render's current Blueprint schema;
-- exact deployed revision recorded;
-- build completes and Chromium exists;
-- process starts and `/health` responds;
-- public dashboard viewing and mutation authorization enforced while `/health`
-  remains public/secret-free;
-- disk path is mounted and writable;
-- Redis TLS/AUTH/database and restart recovery verified;
-- live WINDY capture produces meaningful imagery with canonical framing;
-- real editorial corpus validates;
-- configured AI order/fallback verified without changing weather facts;
-- authorized Telegram commands and shutdown verified;
-- approved-only Facebook publication and reconnect verified;
-- restart, rollback, backup, and recovery evidence recorded.
+The evidence categories must remain separate:
 
-Until these execute on the actual target, Render implementation and production
-certification remain pending.
+- Repository Docker verification: established only by an exact-head Docker
+  build/smoke test and hosted convergence result recorded on the PR.
+- Render Docker deployment: **PENDING** until the existing service successfully
+  builds and starts the reviewed image.
+- Live Render Chromium launch: **PENDING**.
+- Live WINDY imagery and framing: **PENDING**.
+
+Live certification must record:
+
+- exact deployed revision and image build result;
+- process startup and `/health` response;
+- dashboard authorization and public secret-free health;
+- disk mount and write behavior;
+- Redis TLS/AUTH/database and restart recovery;
+- Chromium availability under the deployed runtime user;
+- meaningful live WINDY imagery with canonical framing and paint settle;
+- real editorial corpus validation;
+- configured AI order/fallback without changing weather facts;
+- authorized Telegram behavior and shutdown;
+- approved-only Facebook publication and reconnect;
+- restart, rollback, backup, and recovery evidence.
+
+Until these execute on the actual target, Render Docker implementation and
+production certification remain pending.

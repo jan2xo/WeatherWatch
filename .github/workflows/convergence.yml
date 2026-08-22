@@ -12,7 +12,7 @@ concurrency:
 jobs:
   deterministic-runtime-convergence:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       TELEGRAM_BOT_TOKEN: synthetic-test-token
       TELEGRAM_CHAT_ID: "1"
@@ -26,11 +26,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version-file: ".python-version"
           cache: pip
 
-      - name: Build managed runtime dependencies
-        run: bash scripts/build_render.sh
+      - name: Install verifier dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m pip check
 
       - name: Compile Python modules
         run: >-
@@ -43,6 +45,90 @@ jobs:
             echo "Running ${verifier}"
             python "${verifier}"
           done
+
+      - name: Build the Render Docker artifact
+        run: docker build --tag weatherwatch-ci:verify .
+
+      - name: Verify Chromium in the deployment artifact
+        run: |
+          docker run --rm --network none weatherwatch-ci:verify \
+            python -c 'from playwright.sync_api import sync_playwright; p = sync_playwright().start(); browser = p.chromium.launch(headless=True); page = browser.new_page(); page.set_content("<title>WeatherWatch</title>"); assert page.title() == "WeatherWatch"; browser.close(); p.stop()'
+
+      - name: Smoke test managed startup, health, and shutdown
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          container_name="weatherwatch-ci-smoke"
+          volume_name="weatherwatch-ci-runtime"
+          cleanup() {
+            docker rm --force "${container_name}" >/dev/null 2>&1 || true
+            docker volume rm --force "${volume_name}" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          docker volume create "${volume_name}" >/dev/null
+          docker run --rm \
+            --volume "${volume_name}:/var/data/weatherwatch" \
+            --entrypoint /bin/sh \
+            weatherwatch-ci:verify \
+            -c 'mkdir -p /var/data/weatherwatch && chown root:root /var/data/weatherwatch'
+
+          docker run --detach \
+            --name "${container_name}" \
+            --network none \
+            --volume "${volume_name}:/var/data/weatherwatch" \
+            --env PORT=8787 \
+            --env ADMIN_DASHBOARD_ENABLED=true \
+            --env ADMIN_DASHBOARD_SECRET=synthetic-admin-secret \
+            --env WEATHERWATCH_STATE_BACKEND=filesystem \
+            --env WEATHERWATCH_RUNTIME_ROOT=/var/data/weatherwatch \
+            --env TELEGRAM_BOT_TOKEN=synthetic-test-token \
+            --env TELEGRAM_CHAT_ID=1 \
+            --env TELEGRAM_ALLOWED_CHAT_IDS=1 \
+            --env FACEBOOK_PAGE_ID=synthetic-page \
+            weatherwatch-ci:verify >/dev/null
+
+          app_uid="$(docker exec "${container_name}" awk '/^Uid:/{print $2}' /proc/1/status)"
+          if [ "${app_uid}" = "0" ]; then
+            echo "WeatherWatch application process is running as root."
+            exit 1
+          fi
+          disk_uid="$(docker exec "${container_name}" stat -c '%u' /var/data/weatherwatch)"
+          if [ "${disk_uid}" != "${app_uid}" ]; then
+            echo "Persistent runtime root was not handed to the application user."
+            exit 1
+          fi
+          docker exec "${container_name}" sh -c \
+            'test "${HOME}" = /home/pwuser && test -w "${HOME}"'
+
+          health_ready=false
+          for attempt in $(seq 1 30); do
+            if docker exec "${container_name}" python -c \
+              'import json, urllib.request; payload = json.load(urllib.request.urlopen("http://127.0.0.1:8787/health", timeout=2)); assert payload["application_alive"] is True' \
+              >/dev/null 2>&1; then
+              health_ready=true
+              break
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' "${container_name}")" != "true" ]; then
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "${health_ready}" != "true" ]; then
+            echo "Container did not expose a healthy managed-runtime endpoint."
+            docker logs --tail 100 "${container_name}" || true
+            exit 1
+          fi
+
+          docker stop --time 15 "${container_name}" >/dev/null
+          exit_code="$(docker inspect --format '{{.State.ExitCode}}' "${container_name}")"
+          if [ "${exit_code}" != "0" ]; then
+            echo "Container did not shut down cleanly (exit ${exit_code})."
+            docker logs --tail 100 "${container_name}" || true
+            exit 1
+          fi
 
       - name: Check patch whitespace
         run: git diff --check

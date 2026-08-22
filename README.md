@@ -7,9 +7,13 @@ before Facebook publication.
 
 ## Current status
 
-Repository-controlled implementation is complete for the pre-runtime candidate.
-The Render service has **not** been created or configured, and no live Render,
-Redis, WINDY/Chromium, AI, Telegram, Facebook, restart, or production
+The first real Render development deployment disproved the former native Python
+build contract: `playwright install --with-deps chromium` attempted privileged
+Linux package installation and failed in Render's native build environment.
+WeatherWatch therefore uses a Docker-based Render contract with Chromium and
+its Linux dependencies baked into the image. The existing `weatherwatch-dev`
+service has not yet been redeployed with that image, so no live Docker,
+Chromium/WINDY, Redis, AI, Telegram, Facebook, restart, or production
 certification is claimed.
 
 WINDY is the sole operational map provider. PANaHON and Meteoblue are historical,
@@ -36,25 +40,26 @@ the configured AI chain is unavailable or invalid.
 
 ## Runtime topology
 
-WeatherWatch runs as one long-lived Python service containing Telegram polling,
-APScheduler, the dashboard and `/health`, Facebook reconnect handling, and the
-generation pipeline.
+WeatherWatch runs as one long-lived Python service in one Docker container. The
+process contains Telegram polling, APScheduler, the dashboard and `/health`,
+Facebook reconnect handling, and the generation pipeline.
 
-- Canonical build: `bash scripts/build_render.sh`
+- Canonical Render build artifact: repository-root `Dockerfile`
 - Canonical start: `python -m core.service`
 - Health path: `/health`
 - Managed port: platform `PORT`, bound to `0.0.0.0`
 - Local default: `127.0.0.1:8787`
-- Python: `.python-version` (`3.13`)
+- Python: `.python-version` (`3.12`), matching the pinned Playwright image
 
 On a public bind, `/admin` and `/admin/current-image` require HTTP Basic with
 `ADMIN_DASHBOARD_SECRET`, mutations require the same secret, and `/health`
 remains public and secret-free.
 
-The checked-in `render.yaml` is a deterministic deployment definition, not
-evidence that deployment occurred. It installs pinned Python dependencies and
-Playwright Chromium, provisions a persistent runtime root, and leaves secrets
-owner-controlled.
+The checked-in `render.yaml` selects Render's Docker runtime. The pinned
+Playwright image version matches `requirements.txt`, so the browser binaries and
+Python client cannot drift across releases. This repository contract is not
+evidence that Render successfully built or ran the image. The blueprint
+provisions a persistent runtime root and leaves secrets owner-controlled.
 
 ## State and files
 
@@ -86,9 +91,11 @@ memory with synthetic examples.
 
 ## Verification
 
-Hosted convergence executes every `tests/verify_*.py` script, Python
-compilation, and secret/scope checks without depending on Render, WINDY,
-Telegram, Facebook, Redis cloud, OpenAI, or OpenRouter.
+Hosted convergence builds the intended Docker deployment artifact and executes
+every `tests/verify_*.py` script, Python compilation, and secret/scope checks
+without depending on Render, WINDY, Telegram, Facebook, Redis cloud, OpenAI, or
+OpenRouter. A successful repository Docker build is not live Render or WINDY
+certification.
 
 ## Documentation
 

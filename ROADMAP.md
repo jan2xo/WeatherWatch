@@ -28,7 +28,7 @@ Facebook publication
 
 PAGASA remains the meteorological authority. WeatherWatch owns ingestion, parsing, normalization, editorial workflow, rendering, approval, and publication. AI is an editorial writer, not a weather authority. Human approval remains the final editorial authority.
 
-Existing CLI/headless operation, Telegram approval, local dashboard, health/status behavior, rendering, Facebook publishing, and VPS support are preserved. Render now has a repository-controlled deployment contract, but service creation, configuration, and live certification remain owner-controlled and have not occurred.
+Existing CLI/headless operation, Telegram approval, local dashboard, health/status behavior, rendering, Facebook publishing, and VPS support are preserved. A real Render development service was created after P21, but its native Python build failed while Playwright attempted privileged Linux dependency installation. The canonical repository deployment contract is now Docker-based. Docker redeployment, configuration, and live certification remain owner-controlled and have not occurred.
 
 ## Historical planning baseline and preserved architecture
 
@@ -127,7 +127,12 @@ This roadmap is actively executing through bounded implementation PRs.
 - P9 — COMPLETE: Render-compatible runtime requirements, generic managed-runtime port binding, health semantics, filesystem/durability boundary, and synthetic startup verification are documented without replacing VPS support or claiming deployment.
 - P10 — COMPLETE: minimum path-filtered, ready-for-review/workflow-dispatch convergence workflow is merged; full synthetic certification remains separate.
 - P11 — COMPLETE: integrated synthetic certification passed across real parser/composer/editorial/state/health boundaries with synthetic peripheral providers.
-- P12 — READY FOR OWNER EXECUTION: repository-controlled Render blueprint, build/start contract, durable-state/runtime-root boundary, lifecycle handling, and deployment checklist are implemented synthetically. Real deployment requires owner-controlled runtime authorization, infrastructure, credentials, content, and live evidence.
+- P12 — SUPERSEDED DEPLOYMENT ASSUMPTION: repository-controlled runtime, state,
+  lifecycle, and health boundaries remain valid, but the native Python browser
+  build assumption was disproved by the first real Render deployment.
+- P22 — REPOSITORY REMEDIATION: the Render web service uses a pinned Docker
+  image with Playwright-compatible Chromium dependencies baked in. Owner-run
+  Docker redeployment and live certification remain pending.
 
 Production deployment and production certification have not occurred. TEMPLATED remains the deterministic fallback; AI output is not meteorological authority.
 
@@ -143,16 +148,23 @@ deployment certification has been performed.
 
 ## Pre-runtime convergence
 
-The repository-controlled managed-runtime implementation is complete for the
-candidate: deterministic Render build/start/health configuration, Chromium
-installation, disk-backed runtime root, Redis-compatible durable metadata,
-bounded lifecycle shutdown, communication authorization/redaction, strict
-editorial-memory operations, and hosted synthetic convergence. WINDY remains
-the sole map provider and preserves the verified structural-readiness plus
-10-second paint-settle sequence.
+The first real Render deployment showed that the P21 native Python build could
+not run `playwright install --with-deps chromium`: Render did not permit the
+privileged system-package installation requested by Playwright. GitHub Actions
+had permitted it, so that synthetic success did not establish native Render
+compatibility.
 
-Remaining work is exclusively owner/runtime controlled: create/configure
-Render, wire and recover production Redis, certify live Chromium/WINDY, choose
+The repository-controlled candidate now uses a Docker Render web service with
+the Playwright browser and Linux dependencies baked into a pinned image. The
+start/health contract, disk-backed runtime root, Redis-compatible durable
+metadata, bounded lifecycle shutdown, communication authorization/redaction,
+and strict editorial-memory operations remain unchanged. WINDY remains the sole
+map provider and preserves the live-proven structural-readiness plus 10-second
+paint-settle sequence.
+
+Remaining work is exclusively owner/runtime controlled: redeploy the existing
+Render development service with Docker, wire and recover production Redis,
+certify live Chromium/WINDY, choose
 actual AI endpoints/models/keys, populate real approved memory, verify live
 Telegram and Facebook, exercise restart/recovery, and certify production.
 

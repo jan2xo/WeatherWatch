@@ -11,7 +11,7 @@
 
 ## Runtime topology
 
-One managed Python process runs:
+One Render Docker web service runs one managed Python process:
 
 ```text
 WeatherWatchService
@@ -28,7 +28,10 @@ WeatherWatchService
     └── pending approval persistence
 ```
 
-`python -m core.service` is the canonical start command. The process performs
+The repository-root `Dockerfile` is the canonical managed-runtime artifact and
+`python -m core.service` is its canonical start command. Playwright Chromium and
+its Linux dependencies are part of the pinned image rather than installed with
+privileged package management in a native Render build. The process performs
 bounded shutdown of the scheduler and HTTP servers after Telegram polling
 returns on Ctrl-C/SIGTERM. Browser page, context, and process lifetimes are
 bounded per capture attempt.
@@ -104,7 +107,10 @@ TLS through `rediss://`, bounded socket I/O, and sanitized failure reporting.
 
 ## Certification boundary
 
-Repository and hosted synthetic verification may prove these contracts without
-external calls. Only owner-authorized deployment can prove Render installation,
-live Chromium/WINDY rendering, Redis durability/recovery, AI provider behavior,
+Repository and hosted synthetic verification may prove the Docker build and
+these contracts without external calls. The first native Render attempt proved
+that GitHub CI success with `playwright install --with-deps chromium` did not
+establish native Render compatibility; that deployment path is retired. Only an
+owner-authorized Docker redeployment can prove Render image startup, live
+Chromium/WINDY rendering, Redis durability/recovery, AI provider behavior,
 Telegram control, Facebook publication, restart/recovery, and production health.

@@ -1195,10 +1195,11 @@ backups, rollback, and security guidance.
 
 ### Render managed runtime
 
-`render.yaml` declares one Python web service, `bash scripts/build_render.sh`,
-`python -m core.service`, `/health`, a disk-backed
+`render.yaml` declares one Docker web service built from the digest-pinned
+Playwright Python image, `python -m core.service`, `/health`, a disk-backed
 `/var/data/weatherwatch` runtime root, Redis state mode, and owner-supplied
-secrets. The build script installs pinned requirements and Playwright Chromium.
+secrets. Chromium and its Linux libraries are baked into the image; Render does
+not perform privileged package installation in a native Python build.
 See `docs/RENDER_RUNTIME.md`. These files prepare deployment; they do not prove
 that Render or any external integration has been configured.
 
@@ -1220,6 +1221,7 @@ that Render or any external integration has been configured.
 | `tests/verify_approval_state_safety.py` | Atomic state writes, malformed reads, failed replacement, and concurrent updates |
 | `tests/verify_telegram_intent_commands.py` | Explicit command maps, shared-service dispatch, aliases, and manual coverage |
 | `tests/verify_managed_runtime_configuration.py` | Render blueprint, build/start, disk/runtime-root, environment and port contract |
+| `tests/verify_render_docker_runtime.py` | Digest-pinned Playwright image, Docker build context, Render Docker service and obsolete-native-contract exclusion |
 | `tests/verify_browser_runtime_contract.py` | Container-safe Chromium launch, bounded controls, capture sequence and cleanup |
 | `tests/verify_redis_runtime_readiness.py` | URL/TLS/AUTH/database/timeouts, secret-free health, runtime root and concurrency |
 | `tests/verify_editorial_memory_operations.py` | Provider overrides, strict memory schema/CLI, runtime seed and bounded retrieval |
