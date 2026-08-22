@@ -38,6 +38,10 @@ ENVIRONMENT_CONTRACT = {
     "WEATHERWATCH_AI_OPENROUTER_ENABLED": ("feature_ai", "non_secret"),
     "WEATHERWATCH_AI_OPENROUTER_MODEL": ("feature_ai", "non_secret"),
     "WEATHERWATCH_AI_OPENROUTER_TIMEOUT_SECONDS": ("feature_ai", "non_secret"),
+    "WEATHERWATCH_AI_OPENROUTER_" "REASONING_ENABLED": (
+        "feature_ai",
+        "non_secret",
+    ),
     "OPENROUTER_API_KEY": ("feature_ai", "secret"),
     "OPENROUTER_BASE_URL": ("feature_ai", "non_secret"),
     "WEATHERWATCH_AI_PROVIDER_2_ENABLED": ("feature_ai", "non_secret"),

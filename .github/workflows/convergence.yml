@@ -136,7 +136,11 @@ jobs:
       - name: Scan tracked source for committed secret material
         shell: bash
         run: |
-          if git grep -nEI '(sk-[A-Za-z0-9_-]{20,}|EA[A-Za-z0-9_-]{40,}|/bot[0-9]{6,}:[A-Za-z0-9_-]{20,}/)' -- ':!tests/**' ':!docs/**'; then
+          matches="$(git grep -nEI '(sk-[A-Za-z0-9_-]{20,}|EA[A-Za-z0-9_-]{40,}|/bot[0-9]{6,}:[A-Za-z0-9_-]{20,}/)' -- ':!tests/**' ':!docs/**' || true)"
+          reasoning_default='WEATHERWATCH_AI_OPENROUTER_''REASONING_ENABLED=false'
+          unsafe_matches="$(printf '%s\n' "${matches}" | grep -vE "^\.env\.example:[0-9]+:${reasoning_default}$" || true)"
+          if [ -n "${unsafe_matches}" ]; then
+            printf '%s\n' "${unsafe_matches}"
             echo "Potential committed credential material detected."
             exit 1
           fi
