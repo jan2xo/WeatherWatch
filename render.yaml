@@ -2,12 +2,15 @@ version: "1"
 
 services:
   - type: web
-    name: weatherwatch
-    runtime: python
-    buildCommand: bash scripts/build_render.sh
-    startCommand: python -m core.service
+    name: weatherwatch-dev
+    runtime: docker
+    region: singapore
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python -m core.service
     healthCheckPath: /health
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     maxShutdownDelaySeconds: 30
     disk:
       name: weatherwatch-runtime

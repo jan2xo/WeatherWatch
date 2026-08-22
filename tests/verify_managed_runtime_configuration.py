@@ -10,11 +10,15 @@ def assert_blueprint_contract():
     required_lines = (
         'version: "1"',
         "- type: web",
-        "runtime: python",
-        "buildCommand: bash scripts/build_render.sh",
-        "startCommand: python -m core.service",
+        "name: weatherwatch-dev",
+        "runtime: docker",
+        "region: singapore",
+        "plan: starter",
+        "dockerfilePath: ./Dockerfile",
+        "dockerContext: .",
+        "dockerCommand: python -m core.service",
         "healthCheckPath: /health",
-        "autoDeployTrigger: off",
+        'autoDeployTrigger: "off"',
         "maxShutdownDelaySeconds: 30",
         "disk:",
         "name: weatherwatch-runtime",
@@ -81,7 +85,7 @@ def assert_python_and_build_contract():
     python_version = (PROJECT_ROOT / ".python-version").read_text(
         encoding="utf-8"
     ).strip()
-    assert python_version == "3.13"
+    assert python_version == "3.12"
 
     build_script = (PROJECT_ROOT / "scripts/build_render.sh").read_text(
         encoding="utf-8"
@@ -90,7 +94,8 @@ def assert_python_and_build_contract():
     assert "python -m pip install" in build_script
     assert "-r requirements.txt" in build_script
     assert "python -m pip check" in build_script
-    assert "python -m playwright install --with-deps chromium" in build_script
+    assert "python -m playwright install" not in build_script
+    assert "--with-deps" not in build_script
     assert "python -m compileall -q" in build_script
 
     requirements = (PROJECT_ROOT / "requirements.txt").read_text(
@@ -114,7 +119,9 @@ def assert_python_and_build_contract():
     workflow = (PROJECT_ROOT / ".github/workflows/convergence.yml").read_text(
         encoding="utf-8"
     )
-    assert "run: bash scripts/build_render.sh" in workflow
+    assert "docker build --tag weatherwatch-ci:verify ." in workflow
+    assert "Verify Chromium in the deployment artifact" in workflow
+    assert "Smoke test managed startup, health, and shutdown" in workflow
     assert "tests/verify_*.py" in workflow
 
 
