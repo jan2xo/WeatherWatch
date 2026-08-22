@@ -93,3 +93,9 @@ The P9 runtime check binds the dashboard to an ephemeral local port, exercises
 available, and verifies the state path is isolated. It does not call Telegram,
 Facebook, AI providers, Render, the VPS, or any production system.
 
+PR #15 adds an optional Redis-compatible state backend selected by
+`WEATHERWATCH_STATE_BACKEND=redis` and `WEATHERWATCH_REDIS_URL`. Filesystem
+JSON remains the default and VPS-compatible mode. Synthetic tests cover the
+adapter and failure boundaries; production Redis configuration, Render
+persistent wiring, migration, backup/restore, and recovery remain deployment
+verification work and were not performed here.

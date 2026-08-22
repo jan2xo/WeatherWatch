@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from services.post_type_config_service import get_job_post_type_defaults
-from storage.state_repository import JsonStateRepository
+from storage.state_repository import get_state_repository
 
 
 STATE_FILE = Path("state/approval_state.json")
@@ -29,7 +29,9 @@ def default_state():
 
 def load_state():
     with _STATE_LOCK:
-        return JsonStateRepository(STATE_FILE).load(default_state)
+        return get_state_repository(STATE_FILE, state_key="approval_state").load(
+            default_state
+        )
 
 
 def parse_timestamp(value):
@@ -69,7 +71,7 @@ def prune_history(state):
 def save_state(state):
     with _STATE_LOCK:
         state = prune_history(state)
-        JsonStateRepository(STATE_FILE).save(state)
+        get_state_repository(STATE_FILE, state_key="approval_state").save(state)
 
 
 def create_current_job(job):
