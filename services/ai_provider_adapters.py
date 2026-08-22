@@ -8,10 +8,81 @@ import json
 import os
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 
 class ProviderRequestError(RuntimeError):
     pass
+
+
+PROVIDER_BASE_URL_ENV = {
+    "openrouter": "OPENROUTER_BASE_URL",
+    "openai": "OPENAI_BASE_URL",
+    "provider_2": "AI_PROVIDER_2_BASE_URL",
+    "provider_3": "AI_PROVIDER_3_BASE_URL",
+}
+PROVIDER_DEFAULT_BASE_URL = {
+    "openrouter": "https://openrouter.ai/api/v1",
+    "openai": "https://api.openai.com/v1",
+}
+
+
+def _environment(environ=None):
+    return os.environ if environ is None else environ
+
+
+def resolve_provider_endpoint(provider, environ=None):
+    environment = _environment(environ)
+    name = provider["name"]
+    reference = PROVIDER_BASE_URL_ENV.get(name, "")
+    endpoint = ""
+    if reference:
+        endpoint = str(environment.get(reference, "")).strip()
+    if not endpoint:
+        endpoint = str(provider.get("endpoint", "")).strip()
+    if not endpoint:
+        endpoint = PROVIDER_DEFAULT_BASE_URL.get(name, "")
+    if not endpoint:
+        raise ProviderRequestError(f"{name} endpoint is not configured.")
+
+    parsed = urlsplit(endpoint)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ProviderRequestError(f"{name} endpoint configuration is invalid.")
+    return endpoint.rstrip("/")
+
+
+def get_provider_runtime_status(provider, environ=None):
+    environment = _environment(environ)
+    name = provider["name"]
+    credential_reference = provider.get("credential_reference", "")
+    endpoint_reference = PROVIDER_BASE_URL_ENV.get(name) or None
+    try:
+        resolve_provider_endpoint(provider, environ=environment)
+        endpoint_configured = True
+    except ProviderRequestError:
+        endpoint_configured = False
+    key_configured = bool(
+        credential_reference
+        and str(environment.get(credential_reference, "")).strip()
+    )
+    return {
+        "endpoint_reference": endpoint_reference,
+        "endpoint_configured": endpoint_configured,
+        "key_configured": key_configured,
+        "runtime_ready": bool(
+            provider.get("enabled")
+            and provider.get("model")
+            and endpoint_configured
+            and key_configured
+        ),
+    }
 
 
 def _json_object(text):
@@ -42,15 +113,25 @@ def _extract_content(payload):
 
 
 class OpenAICompatibleEditorialProvider:
-    def __init__(self, *, name, model, timeout_seconds, api_key_env, base_url):
+    def __init__(
+        self,
+        *,
+        name,
+        model,
+        timeout_seconds,
+        api_key_env,
+        base_url,
+        environ=None,
+    ):
         self.name = name
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.api_key_env = api_key_env
         self.base_url = base_url.rstrip("/")
+        self.environ = os.environ if environ is None else environ
 
     def generate(self, context):
-        api_key = os.getenv(self.api_key_env, "").strip()
+        api_key = str(self.environ.get(self.api_key_env, "")).strip()
         if not api_key:
             raise ProviderRequestError(f"{self.name} credential is not configured.")
         body = {
@@ -95,26 +176,23 @@ class OpenAICompatibleEditorialProvider:
         return result
 
 
-def build_provider_from_config(provider):
+def build_provider_from_config(provider, environ=None):
+    environment = _environment(environ)
     name = provider["name"]
-    endpoint = {
-        "openrouter": os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
-        "openai": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-        "provider_2": os.getenv("AI_PROVIDER_2_BASE_URL", ""),
-        "provider_3": os.getenv("AI_PROVIDER_3_BASE_URL", ""),
-    }.get(name, "")
+    endpoint = resolve_provider_endpoint(provider, environ=environment)
     api_key_env = provider.get("credential_reference") or {
         "openrouter": "OPENROUTER_API_KEY",
         "openai": "OPENAI_API_KEY",
         "provider_2": "AI_PROVIDER_2_API_KEY",
         "provider_3": "AI_PROVIDER_3_API_KEY",
     }.get(name, "")
-    if not endpoint:
-        raise ProviderRequestError(f"{name} endpoint is not configured.")
+    if not api_key_env or not str(environment.get(api_key_env, "")).strip():
+        raise ProviderRequestError(f"{name} credential is not configured.")
     return OpenAICompatibleEditorialProvider(
         name=name,
         model=provider["model"],
         timeout_seconds=provider["timeout_seconds"],
         api_key_env=api_key_env,
         base_url=endpoint,
+        environ=environment,
     )

@@ -3,9 +3,11 @@ import string
 from datetime import datetime
 from pathlib import Path
 
+from config.runtime_paths import runtime_config_path, runtime_path
 
-TEMPLATE_PATH = Path("config/caption_templates.pagasa.json")
-BACKUP_DIR = Path("data/template_backups")
+
+TEMPLATE_PATH = runtime_config_path("config/caption_templates.pagasa.json")
+BACKUP_DIR = runtime_path("data/template_backups")
 MAX_TEMPLATE_UPLOAD_BYTES = 100 * 1024
 MAX_TEMPLATE_BACKUPS = 10
 REQUIRED_TOP_LEVEL_KEYS = {

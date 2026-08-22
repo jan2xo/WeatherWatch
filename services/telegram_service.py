@@ -1,7 +1,7 @@
 import requests
 from pathlib import Path
 
-from config.settings import get_required_env
+from config.settings import get_required_env, parse_env_id_list
 
 
 TELEGRAM_PHOTO_CAPTION_LIMIT = 1024
@@ -9,10 +9,40 @@ TELEGRAM_MESSAGE_LIMIT = 4096
 
 
 def get_telegram_config():
-    return (
-        get_required_env("TELEGRAM_BOT_TOKEN"),
-        get_required_env("TELEGRAM_CHAT_ID"),
+    bot_token = get_required_env("TELEGRAM_BOT_TOKEN").strip()
+    raw_chat_id = get_required_env("TELEGRAM_CHAT_ID").strip()
+
+    try:
+        chat_id = int(raw_chat_id)
+    except ValueError as error:
+        raise ValueError("TELEGRAM_CHAT_ID must be a numeric Telegram chat ID") from error
+
+    allowed_chat_ids = parse_env_id_list(
+        "TELEGRAM_ALLOWED_CHAT_IDS",
+        required=True,
     )
+    if chat_id not in allowed_chat_ids:
+        raise ValueError(
+            "TELEGRAM_CHAT_ID must also be present in TELEGRAM_ALLOWED_CHAT_IDS"
+        )
+
+    return bot_token, str(chat_id)
+
+
+def telegram_request(method, url, **kwargs):
+    try:
+        response = method(url, **kwargs)
+    except requests.RequestException as error:
+        raise RuntimeError(
+            f"Telegram request failed: {error.__class__.__name__}"
+        ) from None
+
+    if not response.ok:
+        raise RuntimeError(
+            f"Telegram request failed: HTTP {response.status_code}"
+        )
+
+    return response
 
 
 def split_telegram_text(text: str):
@@ -41,7 +71,8 @@ def send_telegram_message(text: str):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
     for chunk in split_telegram_text(text):
-        response = requests.post(
+        response = telegram_request(
+            requests.post,
             url,
             data={
                 "chat_id": chat_id,
@@ -50,9 +81,6 @@ def send_telegram_message(text: str):
             },
             timeout=30,
         )
-
-        if not response.ok:
-            raise RuntimeError(f"Telegram message failed: {response.text}")
 
         results.append(response.json())
 
@@ -76,7 +104,8 @@ def run_telegram_job(job):
     url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
 
     with image_path.open("rb") as image_file:
-        response = requests.post(
+        response = telegram_request(
+            requests.post,
             url,
             data={
                 "chat_id": chat_id,
@@ -88,9 +117,6 @@ def run_telegram_job(job):
             },
             timeout=30,
         )
-
-    if not response.ok:
-        raise RuntimeError(f"Telegram failed: {response.text}")
 
     result = response.json()
 

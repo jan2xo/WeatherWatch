@@ -29,34 +29,28 @@ jobs:
           python-version: "3.13"
           cache: pip
 
-      - name: Install pinned dependencies
-        run: python -m pip install -r requirements.txt
+      - name: Build managed runtime dependencies
+        run: bash scripts/build_render.sh
 
       - name: Compile Python modules
-        run: python -m compileall -q core services pipelines storage config tests
+        run: >-
+          python -m compileall -q main.py core services pipelines storage config
+          helpers plugins tests tools
 
-      - name: Run deterministic and runtime convergence checks
+      - name: Run every deterministic and runtime verifier
         run: |
-          python tests/verify_forecast_parser.py
-          python tests/verify_content_composer.py
-          python tests/verify_content_composer_config.py
-          python tests/verify_template_guardrails.py
-          python tests/verify_editorial_mode.py
-          python tests/verify_ai_editorial_contract.py
-          python tests/verify_ai_editorial_fallback.py
-          python tests/verify_editorial_context.py
-          python tests/verify_provider_adapters.py
-          python tests/verify_live_editorial_generation.py
-          python tests/verify_editorial_pipeline_wiring.py
-          python tests/verify_editorial_operational_integration.py
-          python tests/verify_telegram_ai_status.py
-          python tests/verify_state_repository.py
-          python tests/verify_facebook_token_state_repository.py
-          python tests/verify_state_backend_health.py
-          python tests/verify_approval_state_safety.py
-          python tests/verify_windy_only_provider.py
-          python tests/verify_windy_capture_reliability.py
-          python tests/verify_map_framing.py
-          python tests/verify_scheduler_config.py
-          python tests/verify_runtime_compatibility.py
-          python tests/verify_dashboard_control_plane.py
+          for verifier in tests/verify_*.py; do
+            echo "Running ${verifier}"
+            python "${verifier}"
+          done
+
+      - name: Check patch whitespace
+        run: git diff --check
+
+      - name: Scan tracked source for committed secret material
+        shell: bash
+        run: |
+          if git grep -nEI '(sk-[A-Za-z0-9_-]{20,}|EA[A-Za-z0-9_-]{40,}|/bot[0-9]{6,}:[A-Za-z0-9_-]{20,}/)' -- ':!tests/**' ':!docs/**'; then
+            echo "Potential committed credential material detected."
+            exit 1
+          fi

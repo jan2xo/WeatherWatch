@@ -2,17 +2,23 @@ import html
 import hmac
 import json
 import threading
+import base64
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 
-from config.settings import get_optional_env, get_required_env
+from config.runtime_paths import get_runtime_root, runtime_path
+from config.settings import (
+    get_environment_contract_status,
+    get_optional_env,
+)
 from services.caption_template_service import get_template_status
 from services.facebook_service import (
-    build_facebook_login_url,
+    consume_facebook_oauth_state,
     get_facebook_status,
     reconnect_facebook_with_code,
+    safe_facebook_error,
 )
 from services.scheduler_config_service import get_scheduler_status
 from services.windy_layer_service import get_windy_layer_status
@@ -22,13 +28,17 @@ from core.scheduler import get_scheduler_runtime_status
 from storage.approval_store import STATE_FILE as APPROVAL_STATE_FILE
 from storage.approval_store import get_current_job
 from storage.facebook_token_store import STATE_FILE as FACEBOOK_TOKEN_STATE_FILE
-from storage.state_repository import get_state_backend_status
+from storage.state_repository import get_state_backend_name, get_state_backend_status
 
 
 APP_VERSION = "0.9.0"
 STARTED_AT = datetime.now()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_ROOT = (PROJECT_ROOT / "output").resolve()
+OUTPUT_ROOT = (
+    runtime_path("output")
+    if get_runtime_root()
+    else PROJECT_ROOT / "output"
+).resolve()
 DEFAULT_DASHBOARD_HOST = "127.0.0.1"
 DEFAULT_DASHBOARD_PORT = 8787
 MAX_POST_BYTES = 1024 * 1024
@@ -96,6 +106,24 @@ def authorize_dashboard_action(provided_secret=None, host=None):
         )
 
     return is_loopback_host(bind_host)
+
+
+def authorize_dashboard_view(authorization_header=None, host=None):
+    bind_host = host or get_admin_dashboard_address()[0]
+    if is_loopback_host(bind_host):
+        return True
+    configured_secret = get_optional_env("ADMIN_DASHBOARD_SECRET")
+    if not configured_secret or not authorization_header:
+        return False
+    scheme, _, encoded = authorization_header.partition(" ")
+    if scheme.lower() != "basic" or not encoded:
+        return False
+    try:
+        decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
+        _, separator, password = decoded.partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return bool(separator and hmac.compare_digest(password, configured_secret))
 
 
 def dispatch_dashboard_action(path, fields=None):
@@ -168,8 +196,8 @@ def format_uptime(total_seconds):
     return f"{seconds}s"
 
 
-def current_job_summary():
-    job = get_current_job()
+def current_job_summary(load_state=True):
+    job = get_current_job() if load_state else None
 
     if not job:
         return {
@@ -253,7 +281,20 @@ def get_current_image_path():
 
 
 def safe_facebook_status():
-    status = get_facebook_status()
+    try:
+        status = get_facebook_status()
+    except Exception as error:
+        return {
+            "configured_page_id": bool(get_optional_env("FACEBOOK_PAGE_ID")),
+            "page_id": None,
+            "page_name": None,
+            "token_type": None,
+            "token_source": "unavailable",
+            "status": "unavailable",
+            "last_checked": None,
+            "last_updated": None,
+            "last_error": safe_facebook_error(error),
+        }
     return {
         "configured_page_id": status.get("configured_page_id"),
         "page_id": status.get("page_id"),
@@ -338,41 +379,84 @@ def get_last_error(
 
 
 def build_health_payload():
-    job = current_job_summary()
-    facebook_status = safe_facebook_status()
+    try:
+        backend_status = get_state_backend_status()
+        backend_name = get_state_backend_name()
+    except (ValueError, RuntimeError) as error:
+        backend_name = "invalid"
+        backend_status = {
+            "state_backend": "invalid",
+            "state_backend_status": "degraded",
+            "state_backend_error": safe_text(error),
+        }
+    # Redis availability is deliberately not probed by the cheap health route.
+    # Avoid turning every platform health check into an external state call.
+    try:
+        job = current_job_summary(load_state=backend_name == "filesystem")
+    except Exception:
+        job = current_job_summary(load_state=False)
+        job["status"] = "unavailable"
+    if backend_name == "filesystem":
+        facebook_status = safe_facebook_status()
+    else:
+        facebook_status = {
+            "configured_page_id": bool(get_optional_env("FACEBOOK_PAGE_ID")),
+            "page_id": None,
+            "page_name": None,
+            "token_type": None,
+            "token_source": (
+                "env_fallback"
+                if get_optional_env("FACEBOOK_PAGE_ACCESS_TOKEN")
+                else "external_state_not_probed"
+            ),
+            "status": "configured",
+            "last_checked": None,
+            "last_updated": None,
+            "last_error": None,
+        }
     template_status = safe_template_status()
     scheduler_status = safe_scheduler_status()
     windy_status = safe_windy_status()
     ai_config_status = safe_ai_config_status()
     state_files = get_state_file_status()
-    try:
-        backend_status = get_state_backend_status()
-    except (ValueError, RuntimeError) as error:
-        backend_status = {
-            "state_backend": "invalid",
-            "state_backend_status": "degraded",
-            "state_backend_error": str(error),
-        }
+    environment_status = get_environment_contract_status()
     framing_decision = job.get("framing_decision") or {}
-    facebook_health = facebook_status.get("status") not in {"invalid", "missing"}
     template_health = template_status.get("validation_status") == "valid"
     scheduler_health = (
         scheduler_status.get("validation_status") == "valid"
     )
     windy_health = windy_status.get("validation_status") == "valid"
-    durable_state_available = backend_status.get("state_backend_status") == "ready"
+    state_state = backend_status.get("state_backend_status")
+    mandatory_ready = environment_status["required_configuration"] == "ready"
+    core_configuration_valid = bool(
+        mandatory_ready
+        and template_health
+        and scheduler_health
+        and windy_health
+    )
+    core_ready = bool(core_configuration_valid and state_state == "ready")
+    facebook_configured = environment_status["facebook"]["page_configured"]
+    facebook_publish_configured = bool(
+        environment_status["facebook"]["publish_token_env_configured"]
+        or facebook_status.get("token_source") == "token_store"
+    )
+    health_status = (
+        "ready"
+        if core_ready
+        else "configured"
+        if core_configuration_valid and state_state == "configured"
+        else "degraded"
+    )
 
     return {
-        "ok": bool(
-            facebook_health
-            and template_health
-            and scheduler_health
-            and windy_health
-        ),
+        "ok": core_ready,
+        "status": health_status,
         "app_version": APP_VERSION,
         "application_alive": True,
         "durable_state": {
-            "available": durable_state_available,
+            "available": state_state == "ready",
+            "configuration_status": state_state,
+            "live_probe": "not_run" if backend_name == "redis" else "local_check",
             "approval_state_file_present": state_files.get("approval_state", False),
             **backend_status,
         },
@@ -380,17 +464,35 @@ def build_health_payload():
             "templated_available": template_health,
             "ai_configuration": ai_config_status.get("validation_status"),
             "ai_optional": True,
+            "ai_runtime_ready": any(
+                provider.get("runtime_ready")
+                for provider in ai_config_status.get("providers", [])
+            ),
         },
         "publication_subsystem": {
             "facebook_status": facebook_status.get("status"),
-            "configured": facebook_health,
+            "configured": facebook_configured,
+            "publish_credentials_configured": facebook_publish_configured,
+            "live_probe": "not_run",
         },
+        "capture_subsystem": {
+            "provider": "windy",
+            "browser_contract": "configured",
+            "live_probe": "not_run",
+            "content_certification": "pending",
+        },
+        "environment": environment_status,
         "started_at": STARTED_AT.isoformat(timespec="seconds"),
         "uptime_seconds": get_uptime_seconds(),
         "telegram_status": {
             "mode": "polling",
             "bootstrap_retries": "indefinite",
-            "process_restart": "use systemd on VPS",
+            "configured": environment_status["telegram"]["configured"],
+            "authorization_configured": environment_status["telegram"][
+                "authorization_configured"
+            ],
+            "live_probe": "not_run",
+            "process_restart": "managed by service supervisor",
         },
         "current_job_status": job.get("status"),
         "current_job_id": job.get("job_id"),
@@ -403,7 +505,11 @@ def build_health_payload():
         "ai_fallback_level": job.get("ai_fallback_level"),
         "ai_validation_state": job.get("ai_validation_state"),
         "editorial_provenance": job.get("editorial_provenance"),
-        "current_image_available": get_current_image_path() is not None,
+        "current_image_available": (
+            get_current_image_path() is not None
+            if backend_name == "filesystem"
+            else False
+        ),
         "current_post_type": job.get("post_type"),
         "available_post_types": job.get("available_post_types"),
         "suggested_post_type": job.get("suggested_post_type"),
@@ -1182,6 +1288,24 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Location", url)
         self.end_headers()
 
+    def require_dashboard_view(self):
+        if authorize_dashboard_view(
+            authorization_header=self.headers.get("Authorization"),
+            host=self.server.server_address[0],
+        ):
+            return True
+        content = render_simple_page(
+            "Authentication Required",
+            "Use the configured dashboard secret.",
+        )
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="WeatherWatch Admin"')
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+        return False
+
     def send_current_image(self):
         image_path = get_current_image_path()
         if image_path is None:
@@ -1237,6 +1361,8 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         if parsed.path == "/admin":
+            if not self.require_dashboard_view():
+                return
             query = parse_qs(parsed.query)
             message = query.get("message", [None])[0]
             message_is_error = query.get("error", ["0"])[0] == "1"
@@ -1254,11 +1380,19 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/admin/current-image":
+            if not self.require_dashboard_view():
+                return
             self.send_current_image()
             return
 
         if parsed.path == "/admin/fb/connect":
-            self.redirect(build_facebook_login_url())
+            self.send_html(
+                403,
+                render_simple_page(
+                    "Forbidden",
+                    "Start Facebook reconnect from the authorized Telegram control plane.",
+                ),
+            )
             return
 
         if parsed.path == "/admin/fb/callback":
@@ -1354,10 +1488,28 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
 
     def handle_facebook_callback(self, parsed):
         query = parse_qs(parsed.query)
+        state = query.get("state", [None])[0]
+
+        if not consume_facebook_oauth_state(state):
+            self.send_html(
+                400,
+                render_simple_page(
+                    "Facebook Reconnect Failed",
+                    "Invalid or expired reconnect state. Start the reconnect flow again.",
+                ),
+            )
+            return
+
         error = query.get("error_description") or query.get("error")
 
         if error:
-            self.send_html(400, render_simple_page("Facebook Reconnect Failed", error[0]))
+            self.send_html(
+                400,
+                render_simple_page(
+                    "Facebook Reconnect Failed",
+                    safe_facebook_error(error[0]),
+                ),
+            )
             return
 
         code = query.get("code", [None])[0]
@@ -1376,7 +1528,7 @@ class AdminDashboardHandler(BaseHTTPRequestHandler):
                 500,
                 render_simple_page(
                     "Facebook Reconnect Failed",
-                    f"Could not save a Page token: {error}",
+                    f"Could not save a Page token: {safe_facebook_error(error)}",
                 ),
             )
             return

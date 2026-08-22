@@ -6,6 +6,8 @@ import html
 import uuid
 from pathlib import Path
 
+from config.runtime_paths import runtime_path
+
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -124,6 +126,7 @@ load_dotenv()
 
 MAX_DERIVED_HEADLINE_LENGTH = 70
 UNAUTHORIZED_MESSAGE = "Unauthorized."
+OPERATOR_ERROR_LIMIT = 300
 MODIFY_LABEL_PATTERN = re.compile(
     r"^\s*(HEADLINES?|CAPTIONS?)\s*:\s*",
     re.IGNORECASE | re.MULTILINE,
@@ -192,6 +195,19 @@ def is_authorized(update: Update) -> bool:
         return False
 
     return True
+
+
+def safe_operator_error(error) -> str:
+    lines = str(error).splitlines()
+    text = lines[0] if lines else error.__class__.__name__
+    text = re.sub(r"(?i)(/bot)[^/\s]+/", r"\1<hidden>/", text)
+    text = re.sub(
+        r"(?i)(access[_ -]?token|api[_ -]?key|client_secret|app_secret)"
+        r"(\s*[=:]\s*)[^\s&]+",
+        r"\1\2<hidden>",
+        text,
+    )
+    return text[:OPERATOR_ERROR_LIMIT]
 
 
 async def reply_unauthorized(update: Update):
@@ -1463,7 +1479,9 @@ async def template_upload_command(update: Update, context: ContextTypes.DEFAULT_
         await message.reply_text("Template upload rejected: file too large.")
         return
 
-    temp_path = Path("data/template_uploads") / f"caption_template_upload.{uuid.uuid4().hex}.json"
+    temp_path = runtime_path("data/template_uploads") / (
+        f"caption_template_upload.{uuid.uuid4().hex}.json"
+    )
     temp_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -1789,7 +1807,10 @@ async def memory_status_command(update: Update, context: ContextTypes.DEFAULT_TY
             "Memory is editorial precedent only; it is not weather truth."
         )
     except Exception as error:
-        message = f"Editorial memory unavailable/degraded: {error}"
+        message = (
+            "Editorial memory unavailable/degraded: "
+            f"{safe_operator_error(error)}"
+        )
     await update.message.reply_text(message)
 
 
@@ -1824,7 +1845,9 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as error:
-        await update.message.reply_text(f"⚠️ Update failed.\n\n{error}")
+        await update.message.reply_text(
+            f"⚠️ Update failed.\n\n{safe_operator_error(error)}"
+        )
 
 
 async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1839,7 +1862,8 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as error:
         await update.message.reply_text(
-            f"⚠️ Approval or Facebook publish failed.\n\n{error}"
+            "⚠️ Approval or Facebook publish failed.\n\n"
+            f"{safe_operator_error(error)}"
         )
 
 
@@ -1859,7 +1883,8 @@ async def text_approve_command(
         )
     except Exception as error:
         await update.message.reply_text(
-            f"⚠️ Text approval or Facebook publish failed.\n\n{error}"
+            "⚠️ Text approval or Facebook publish failed.\n\n"
+            f"{safe_operator_error(error)}"
         )
 
 
@@ -1875,7 +1900,7 @@ async def retry_publish_command(update: Update, context: ContextTypes.DEFAULT_TY
 
     except Exception as error:
         await update.message.reply_text(
-            f"⚠️ Facebook publish failed.\n\n{error}"
+            f"⚠️ Facebook publish failed.\n\n{safe_operator_error(error)}"
         )
 
 
@@ -1981,7 +2006,10 @@ async def fbstatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     if token_status.get("last_error"):
-        lines.append(f"Last token error: {token_status.get('last_error')}")
+        lines.append(
+            "Last token error: "
+            f"{safe_operator_error(token_status.get('last_error'))}"
+        )
 
     if job:
         lines.extend([
@@ -1996,7 +2024,10 @@ async def fbstatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines.append(f"Post ID: {job.get('facebook_post_id')}")
 
         if job.get("last_error"):
-            lines.append(f"Last publish error: {job.get('last_error')}")
+            lines.append(
+                "Last publish error: "
+                f"{safe_operator_error(job.get('last_error'))}"
+            )
 
     if job:
         await send_job_preview(update, job, "\n".join(lines))
@@ -2009,7 +2040,10 @@ async def fb_reconnect_command(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         reconnect_url = get_admin_connect_url()
     except Exception as error:
-        await update.message.reply_text(f"Facebook reconnect is not configured: {error}")
+        await update.message.reply_text(
+            "Facebook reconnect is not configured: "
+            f"{safe_operator_error(error)}"
+        )
         return
 
     await update.message.reply_text(
@@ -2041,7 +2075,7 @@ async def fb_set_token_command(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as error:
         await update.effective_chat.send_message(
             "⚠️ Facebook Page token was not saved.\n\n"
-            f"{error}"
+            f"{safe_operator_error(error)}"
         )
         return
 
@@ -2089,7 +2123,7 @@ async def modify_message_handler(update: Update, context: ContextTypes.DEFAULT_T
         photo = message.photo[-1]
         file = await context.bot.get_file(photo.file_id)
 
-        output_dir = Path("output/manual_inputs")
+        output_dir = runtime_path("output/manual_inputs")
         output_dir.mkdir(parents=True, exist_ok=True)
 
         image_path = output_dir / f"{current['job_id']}_manual.jpg"
@@ -2177,9 +2211,9 @@ def build_telegram_app():
 
     app = Application.builder().token(token).build()
 
-    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("start", admin_command(start_command)))
     app.add_handler(CommandHandler("manual", admin_command(manual_command)))
-    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("status", admin_command(status_command)))
     app.add_handler(CommandHandler("ai_status", admin_command(ai_status_command)))
     app.add_handler(CommandHandler("memory_status", admin_command(memory_status_command)))
     app.add_handler(CommandHandler("update", admin_command(update_command)))

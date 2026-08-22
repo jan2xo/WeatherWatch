@@ -1,3 +1,4 @@
+import math
 import time
 from pathlib import Path
 
@@ -6,9 +7,22 @@ from playwright.sync_api import sync_playwright
 
 
 DEFAULT_CAPTURE_ATTEMPTS = 2
+MAX_CAPTURE_ATTEMPTS = 5
+DEFAULT_BROWSER_START_TIMEOUT_MS = 60000
+MAX_BROWSER_START_TIMEOUT_MS = 120000
 DEFAULT_NAVIGATION_TIMEOUT_MS = 60000
+MAX_NAVIGATION_TIMEOUT_MS = 300000
 DEFAULT_READINESS_TIMEOUT_MS = 20000
+MAX_READINESS_TIMEOUT_MS = 120000
+DEFAULT_SCREENSHOT_TIMEOUT_MS = 30000
+MAX_SCREENSHOT_TIMEOUT_MS = 120000
 DEFAULT_RETRY_DELAY_SECONDS = 0.5
+MAX_RETRY_DELAY_SECONDS = 30
+CAPTURE_VIEWPORT = {"width": 1080, "height": 1350}
+CAPTURE_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 Chrome/148 Safari/537.36"
+)
 MIN_SCREENSHOT_WIDTH = 320
 MIN_SCREENSHOT_HEIGHT = 240
 
@@ -60,17 +74,72 @@ def _close_safely(resource):
         pass
 
 
+def _validate_capture_bounds(
+    *,
+    attempts,
+    retry_delay_seconds,
+    browser_start_timeout_ms,
+    navigation_timeout_ms,
+    readiness_timeout_ms,
+    screenshot_timeout_ms,
+):
+    if (
+        not isinstance(attempts, int)
+        or isinstance(attempts, bool)
+        or not 1 <= attempts <= MAX_CAPTURE_ATTEMPTS
+    ):
+        raise ValueError(
+            f"Capture attempts must be between 1 and {MAX_CAPTURE_ATTEMPTS}."
+        )
+
+    for value, name, maximum in (
+        (
+            browser_start_timeout_ms,
+            "Browser start timeout",
+            MAX_BROWSER_START_TIMEOUT_MS,
+        ),
+        (navigation_timeout_ms, "Navigation timeout", MAX_NAVIGATION_TIMEOUT_MS),
+        (readiness_timeout_ms, "Readiness timeout", MAX_READINESS_TIMEOUT_MS),
+        (screenshot_timeout_ms, "Screenshot timeout", MAX_SCREENSHOT_TIMEOUT_MS),
+    ):
+        if (
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or not 1 <= value <= maximum
+        ):
+            raise ValueError(f"{name} must be between 1 and {maximum} milliseconds.")
+
+    if (
+        isinstance(retry_delay_seconds, bool)
+        or not isinstance(retry_delay_seconds, (int, float))
+        or not math.isfinite(retry_delay_seconds)
+        or not 0 <= retry_delay_seconds <= MAX_RETRY_DELAY_SECONDS
+    ):
+        raise ValueError(
+            "Capture retry delay must be between 0 and "
+            f"{MAX_RETRY_DELAY_SECONDS} seconds."
+        )
+
+
 def capture_page(
     url,
     output_path,
     readiness_callback=None,
     attempts=DEFAULT_CAPTURE_ATTEMPTS,
     retry_delay_seconds=DEFAULT_RETRY_DELAY_SECONDS,
+    browser_start_timeout_ms=DEFAULT_BROWSER_START_TIMEOUT_MS,
     navigation_timeout_ms=DEFAULT_NAVIGATION_TIMEOUT_MS,
     readiness_timeout_ms=DEFAULT_READINESS_TIMEOUT_MS,
+    screenshot_timeout_ms=DEFAULT_SCREENSHOT_TIMEOUT_MS,
 ):
-    if not isinstance(attempts, int) or isinstance(attempts, bool) or attempts < 1:
-        raise ValueError("Capture attempts must be a positive integer.")
+    _validate_capture_bounds(
+        attempts=attempts,
+        retry_delay_seconds=retry_delay_seconds,
+        browser_start_timeout_ms=browser_start_timeout_ms,
+        navigation_timeout_ms=navigation_timeout_ms,
+        readiness_timeout_ms=readiness_timeout_ms,
+        screenshot_timeout_ms=screenshot_timeout_ms,
+    )
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     last_error = None
@@ -86,13 +155,16 @@ def capture_page(
         try:
             with sync_playwright() as playwright:
                 try:
-                    browser = playwright.chromium.launch(headless=True)
+                    # Keep Chromium's sandbox enabled. Managed-runtime builds
+                    # must install the Playwright-managed browser and Linux
+                    # dependencies rather than weakening this launch boundary.
+                    browser = playwright.chromium.launch(
+                        headless=True,
+                        timeout=browser_start_timeout_ms,
+                    )
                     context = browser.new_context(
-                        viewport={"width": 1080, "height": 1350},
-                        user_agent=(
-                            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                            "AppleWebKit/537.36 Chrome/148 Safari/537.36"
-                        ),
+                        viewport=dict(CAPTURE_VIEWPORT),
+                        user_agent=CAPTURE_USER_AGENT,
                     )
                     page = context.new_page()
 
@@ -116,7 +188,10 @@ def capture_page(
                         )
 
                     stage = "screenshot"
-                    page.screenshot(path=output_path)
+                    page.screenshot(
+                        path=output_path,
+                        timeout=screenshot_timeout_ms,
+                    )
 
                     stage = "artifact_validation"
                     validate_capture_artifact(output_path)

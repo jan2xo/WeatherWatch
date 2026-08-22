@@ -1,53 +1,104 @@
-# WeatherWatch State Boundary
+# WeatherWatch state and filesystem boundary
 
-The application uses the `StateRepository` contract in
-`storage/state_repository.py`. `WEATHERWATCH_STATE_BACKEND` selects the
-backend and defaults to `filesystem`; unknown values fail clearly. The
-filesystem backend preserves the existing atomic JSON paths. The additive
-`redis` backend stores namespaced JSON documents using
-`WEATHERWATCH_REDIS_URL` and is intended for disposable/synthetic verification
-and later owner-configured cloud deployment.
+WeatherWatch keeps durable domain state behind the `StateRepository` contract
+in `storage/state_repository.py`. `WEATHERWATCH_STATE_BACKEND` selects
+`filesystem` (the local-development default) or `redis`. Unknown backends and
+invalid Redis configuration fail clearly. Filesystem mode never requires or
+contacts Redis.
 
-This document records the current persistence classification for runtime and
-cloud-runtime planning. It does not authorize production migration.
+This boundary prepares the repository for a managed runtime; it does not claim
+that a production backend, persistent disk, backup, or recovery procedure has
+already been configured or certified.
 
-| State | Classification | Current handling |
+## Runtime write classification
+
+| Runtime write | Classification | Persistence requirement |
 | --- | --- | --- |
-| Approval current job, approval history, publication/retry status, and editorial provenance | DURABLE | `state/approval_state.json`, through `storage.state_repository.JsonStateRepository`; survives process restart and preserves the existing atomic filesystem behavior. |
-| AI editorial configuration and other repository-controlled JSON configuration | DURABLE CONFIGURATION | Versioned files under `config/`; provider credentials are not stored there. |
-| Curated editorial memory | DURABLE WHEN ENABLED | The current memory boundary is an in-memory interface; a future persisted memory backend must retain approval and factual separation. |
-| Scheduler definition | DURABLE CONFIGURATION | `config/scheduler.json`; runtime scheduling itself is reconstructible, while active jobs are not treated as approval state. |
-| Facebook access token and token metadata | OWNER-SECRET / EXTERNAL | `state/facebook_token_state.json`; remains outside the generic state abstraction and must use approved secret handling. |
+| Current approval, approval history, publication/retry status, and editorial provenance | **DURABLE** | Stored through `StateRepository` as `state/approval_state.json` or `weatherwatch:approval_state`. |
+| Facebook access token and token metadata | **DURABLE OWNER SECRET** | Stored through the same repository boundary as `state/facebook_token_state.json` or `weatherwatch:facebook_token_state`. Public status projections exclude the access token. |
+| Pending raw capture and rendered approval image | **RESTART-SENSITIVE OPERATIONAL ARTIFACT** | The approval record references these files until publication or rejection. A managed runtime must retain them across the supported approval/restart window with `WEATHERWATCH_RUNTIME_ROOT` on owner-configured persistent storage, or explicitly reject/regenerate the pending job before replacement. Redis preserves metadata, not image bytes. |
+| Browser screenshots, failed partial captures, completed/rejected output, and processing-only uploads | **EPHEMERAL / REGENERABLE** | May use the managed-service filesystem. Failed partial captures and temporary upload files are removed by their owning workflows. Retention must not delete files referenced by the current approval. |
+| Scheduler, AI/editorial, caption, layout, language, and WINDY configuration | **DURABLE CONFIGURATION** | Canonical defaults are versioned under `config/`. Runtime operator edits and backups under `config/` or `data/` will not survive a managed-runtime replacement unless routed through `WEATHERWATCH_RUNTIME_ROOT` and backed by persistent storage, or promoted to canonical source. |
+| Curated editorial memory | **DURABLE CONFIGURATION / OWNER CONTENT** | `config/editorial_memory.json` is validated repository/operator content. Real approved examples remain owner-controlled and must not be replaced with synthetic production data. |
+| Legacy `output/pending_posts.json` | **LEGACY / NON-CANONICAL** | Used only by legacy `services/approval_bot.py`; it is not the active approval-state boundary and must not be deployed as a second control plane. |
 
-## External backend boundary
+## Runtime root
 
-The Redis-compatible adapter uses these stable keys:
+`config.runtime_paths.runtime_path()` preserves existing repository-relative
+paths when `WEATHERWATCH_RUNTIME_ROOT` is unset. When set, writable state,
+output, upload, backup, and runtime-mutated configuration paths are rooted under
+that directory. The value must be an absolute persistent-disk mount in a
+managed runtime. Callers pass only fixed repository-relative paths; absolute or
+parent-traversing relative paths are rejected.
 
-- `weatherwatch:approval_state`
-- `weatherwatch:facebook_token_state`
+Using a runtime root does not make a path durable by itself. Durability comes
+from the owner attaching and validating persistent storage at that root.
 
-Missing keys use the domain default factory. Malformed values, connection
-failures, and failed writes raise visible errors; they are never converted to
-empty state. The adapter does not log URLs, passwords, tokens, or stored
-documents.
+## Filesystem backend
 
-## Migration and certification status
+`JsonStateRepository` creates parent directories as needed and saves by writing,
+flushing, and `fsync`-ing a temporary file in the destination directory before
+an atomic `os.replace`. A missing file uses the domain default. A corrupt or
+transiently unreadable file raises a visible error and is never silently
+replaced with empty state.
 
-There is no automatic startup migration and no production migration in this
-implementation. An owner migration utility may later read and validate the
-filesystem files, write the external keys, verify the result, and retain the
-source files; it must support dry-run and must never delete the source
-automatically.
+Filesystem mode is suitable for local development. On a managed service it is
+durable only when `WEATHERWATCH_RUNTIME_ROOT` points to persistent storage.
 
-Implemented and synthetically verified: filesystem backend, Redis-compatible
-adapter, backend selection, namespaced keys, approval/token integration, and
-failure-safe behavior. Not yet certified: production Redis configuration,
-Render persistent configuration, production migration, backup/restore, and
-production recovery verification.
-| Render intermediates, screenshots, temporary uploads, and disposable generated assets | EPHEMERAL | Runtime output/data paths and retention rules; safe to recreate or destroy. |
+## Redis-compatible backend
 
-The JSON repository is deliberately a compatibility boundary, not a claim that
-the local filesystem is sufficient for every cloud deployment. A future durable
-backend may replace it while approval-domain callers retain the same load/save
-contract. Production credentials, customer data, and production systems are
-out of scope for engineering verification.
+Set both:
+
+```text
+WEATHERWATCH_STATE_BACKEND=redis
+WEATHERWATCH_REDIS_URL=rediss://USERNAME:PASSWORD@HOST:PORT/DATABASE
+```
+
+The URL is a secret and must be supplied by the runtime secret store. Supported
+semantics are:
+
+- `redis://` for plain TCP and `rediss://` for certificate-verified TLS;
+- percent-decoded username/password credentials;
+- numeric database selection from the URL path (default database `0`);
+- a three-second bounded connect/read/write/authentication timeout;
+- one connection per operation, always closed in `finally`;
+- raw sockets closed if TLS setup fails;
+- stable keys `weatherwatch:approval_state` and
+  `weatherwatch:facebook_token_state`.
+
+Query strings, fragments, nonnumeric database paths, invalid ports, and a
+username without a password are rejected. Missing keys use the domain default
+factory. Malformed JSON, connection failures, authentication failures, and
+failed writes raise safe public errors and never become empty state. Error
+messages and health payloads do not include the Redis URL, credentials, stored
+document, or raw server error reply.
+
+## Health and failure semantics
+
+Health checks validate backend selection and URL shape without connecting to
+Redis. Therefore:
+
+- filesystem reports `ready` because its local repository boundary is usable;
+- a syntactically valid Redis configuration reports `configured`, not `ready`;
+- missing or invalid Redis configuration reports `degraded`;
+- live Redis reachability is proven only by an actual bounded state operation
+  or a separate owner-controlled runtime certification.
+
+If Redis is selected but unavailable, state access fails visibly. WeatherWatch
+does not silently fall back to filesystem, because that would split durable
+approval/token state across backends. Local filesystem mode remains independent
+and does not need Redis.
+
+## Migration, backup, and certification
+
+No automatic filesystem-to-Redis migration is performed. An owner-controlled
+migration must validate source state, write the stable keys, read them back,
+retain the source files, and support a dry run. It must never delete source
+state automatically.
+
+Repository verification covers atomic filesystem behavior, Redis URL/TLS/AUTH/
+database semantics, bounded timeouts, connection cleanup, safe errors,
+namespaced approval/token integration, runtime-root path safety, and offline
+health reporting. Still owner/runtime-controlled: production Redis wiring,
+persistent-disk attachment, backup/restore, restart recovery, and production
+certification.

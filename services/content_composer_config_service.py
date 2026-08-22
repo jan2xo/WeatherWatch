@@ -5,10 +5,12 @@ import string
 from datetime import datetime
 from pathlib import Path
 
+from config.runtime_paths import runtime_config_path, runtime_path
 
-CONFIG_PATH = Path("config/content_composer.json")
-BACKUP_DIR = Path("data/composer_backups")
-UPLOAD_DIR = Path("data/composer_uploads")
+
+CONFIG_PATH = runtime_config_path("config/content_composer.json")
+BACKUP_DIR = runtime_path("data/composer_backups")
+UPLOAD_DIR = runtime_path("data/composer_uploads")
 MAX_COMPOSER_UPLOAD_BYTES = 100 * 1024
 MAX_COMPOSER_BACKUPS = 10
 ALLOWED_PLACEHOLDERS = {

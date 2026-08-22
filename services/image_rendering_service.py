@@ -6,13 +6,15 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
+from config.runtime_paths import runtime_config_path, runtime_path
+
 
 LOGGER = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = BASE_DIR / "config" / "image_rendering.json"
-BACKUP_DIR = BASE_DIR / "data" / "image_rendering_backups"
-UPLOAD_DIR = BASE_DIR / "data" / "image_rendering_uploads"
+CONFIG_PATH = runtime_config_path("config/image_rendering.json")
+BACKUP_DIR = runtime_path("data/image_rendering_backups")
+UPLOAD_DIR = runtime_path("data/image_rendering_uploads")
 TARGET_SIZE = (1080, 1350)
 DEFAULT_FIT_MODE = "smartfit"
 SUPPORTED_FIT_MODES = ("stretch", "smartfit", "crop")
@@ -670,7 +672,7 @@ def get_image_rendering_status(config_path=CONFIG_PATH):
         validation_error = None
 
     return {
-        "config_path": str(CONFIG_PATH.relative_to(BASE_DIR)),
+        "config_path": str(CONFIG_PATH),
         "version": config.get("version"),
         "validation_status": validation_status,
         "last_loaded": _last_loaded,

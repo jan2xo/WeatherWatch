@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from config.runtime_paths import runtime_path
 from storage.approval_store import get_current_job
 
 
-MANUAL_INPUTS_DIR = Path("output/manual_inputs")
+MANUAL_INPUTS_DIR = runtime_path("output/manual_inputs")
 MANUAL_INPUT_RETENTION_DAYS = 7
 
 

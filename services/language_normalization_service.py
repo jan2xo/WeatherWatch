@@ -5,12 +5,14 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from config.runtime_paths import runtime_config_path, runtime_path
+
 
 LOGGER = logging.getLogger(__name__)
 
-CONFIG_PATH = Path("config/language_normalization.json")
-BACKUP_DIR = Path("data/language_backups")
-UPLOAD_DIR = Path("data/language_uploads")
+CONFIG_PATH = runtime_config_path("config/language_normalization.json")
+BACKUP_DIR = runtime_path("data/language_backups")
+UPLOAD_DIR = runtime_path("data/language_uploads")
 MAX_LANGUAGE_UPLOAD_BYTES = 100 * 1024
 MAX_LANGUAGE_BACKUPS = 10
 SUPPORTED_FORMS = {"body", "headline", "short"}

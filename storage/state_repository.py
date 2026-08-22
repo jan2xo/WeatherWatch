@@ -6,6 +6,7 @@ replace this boundary without changing approval-domain code.
 """
 
 import json
+import math
 import os
 import socket
 import ssl
@@ -14,6 +15,8 @@ import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from urllib.parse import unquote, urlparse
+
+from config.runtime_paths import runtime_path
 
 
 class StateRepository(ABC):
@@ -85,11 +88,37 @@ class RedisStateRepository(StateRepository):
         parsed = urlparse(url)
         if parsed.scheme not in {"redis", "rediss"} or not parsed.hostname:
             raise ValueError("WEATHERWATCH_REDIS_URL must be redis:// or rediss://.")
+        if parsed.params or parsed.query or parsed.fragment:
+            raise ValueError("WEATHERWATCH_REDIS_URL contains unsupported URL components.")
+        database_path = "/0" if parsed.path in {"", "/"} else parsed.path
+        if not database_path.startswith("/") or not database_path[1:].isdigit():
+            raise ValueError("WEATHERWATCH_REDIS_URL must contain a numeric database path.")
+        if (
+            isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, (int, float))
+            or not math.isfinite(timeout_seconds)
+            or timeout_seconds <= 0
+            or timeout_seconds > 30
+        ):
+            raise ValueError("Redis timeout must be greater than zero and at most 30 seconds.")
+        try:
+            parsed_port = parsed.port
+        except ValueError:
+            raise ValueError(
+                "WEATHERWATCH_REDIS_URL contains an invalid port."
+            ) from None
+        port = 6379 if parsed_port is None else parsed_port
+        if port < 1:
+            raise ValueError("WEATHERWATCH_REDIS_URL contains an invalid port.")
         self.host = parsed.hostname
-        self.port = parsed.port or 6379
-        self.database = int((parsed.path or "/0").lstrip("/") or 0)
+        self.port = port
+        self.database = int(database_path[1:])
         self.password = unquote(parsed.password) if parsed.password else None
         self.username = unquote(parsed.username) if parsed.username else None
+        if self.username and not self.password:
+            raise ValueError(
+                "WEATHERWATCH_REDIS_URL username authentication requires a password."
+            )
         self.tls = parsed.scheme == "rediss"
         self.key = key
         self.timeout_seconds = timeout_seconds
@@ -106,11 +135,21 @@ class RedisStateRepository(StateRepository):
         raw_socket = socket.create_connection(
             (self.host, self.port), timeout=self.timeout_seconds
         )
-        if self.tls:
-            return ssl.create_default_context().wrap_socket(
-                raw_socket, server_hostname=self.host
-            )
-        return raw_socket
+        try:
+            if self.tls:
+                connection = ssl.create_default_context().wrap_socket(
+                    raw_socket, server_hostname=self.host
+                )
+            else:
+                connection = raw_socket
+            # Keep connect, authentication, reads, and writes bounded. TLS
+            # wrappers normally inherit the timeout, but setting it explicitly
+            # makes that runtime contract unambiguous.
+            connection.settimeout(self.timeout_seconds)
+            return connection
+        except BaseException:
+            raw_socket.close()
+            raise
 
     @staticmethod
     def _read_response(connection):
@@ -122,9 +161,9 @@ class RedisStateRepository(StateRepository):
             line += chunk
         prefix, value = line[:1], line[1:-2]
         if prefix == b"-":
-            raise RuntimeError(
-                f"External state backend error: {value.decode(errors='replace')}"
-            )
+            # Redis error replies can echo command or authentication details.
+            # Keep even chained exceptions safe for operational tracebacks.
+            raise RuntimeError("External state backend rejected the request.")
         if prefix == b"$":
             size = int(value)
             if size == -1:
@@ -200,6 +239,23 @@ def get_state_repository(path, *, state_key):
 
 def get_state_backend_status():
     backend = get_state_backend_name()
+    if backend == "filesystem":
+        try:
+            candidate = runtime_path("state")
+            while not candidate.exists() and candidate != candidate.parent:
+                candidate = candidate.parent
+            if not candidate.is_dir() or not os.access(candidate, os.W_OK | os.X_OK):
+                raise OSError("runtime state path is not writable")
+        except (OSError, ValueError):
+            return {
+                "state_backend": "filesystem",
+                "state_backend_status": "degraded",
+                "state_backend_error": "Filesystem state path is not writable.",
+            }
+        return {
+            "state_backend": "filesystem",
+            "state_backend_status": "ready",
+        }
     if backend == "redis":
         url = os.getenv(REDIS_URL_ENV)
         if not url:
@@ -218,5 +274,5 @@ def get_state_backend_status():
             }
     return {
         "state_backend": backend,
-        "state_backend_status": "ready" if backend == "filesystem" else "configured",
+        "state_backend_status": "configured",
     }

@@ -3,6 +3,7 @@ from pipelines.weather_pipeline import run_weather_pipeline
 from services.pagasa_service import fetch_daily_forecast
 from services.editorial_mode_service import EditorialMode
 from config.settings import get_optional_env
+from config.runtime_paths import runtime_path
 from storage.approval_store import get_current_job
 
 
@@ -46,8 +47,12 @@ class WeatherWatch:
                         "provider_display": provider["display_name"],
                         "provider_url": provider["shorten_url"],
                         "url": provider["url"],
-                        "raw_output_path": f"output/{provider['name']}_raw.png",
-                        "final_output_path": f"output/{provider['name']}_final.png",
+                        "raw_output_path": str(
+                            runtime_path(f"output/{provider['name']}_raw.png")
+                        ),
+                        "final_output_path": str(
+                            runtime_path(f"output/{provider['name']}_final.png")
+                        ),
                         "headline": "MAINIT AT MAALINSANGANG PANAHON, MAY PAMINSAN-MINSANG PAG-ULAN",
                         "source": (
                                     f"MAP: {provider['display_name'].upper()} | {provider['shorten_url']}\n"

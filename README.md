@@ -1,313 +1,101 @@
-# 🌤 WeatherWatch
+# WeatherWatch
 
-> **A production-oriented, modular weather automation platform for the Philippines.**
+WeatherWatch is a production-oriented Philippine weather editorial and
+publishing service. It turns canonical structured weather facts into a branded
+WINDY graphic and a templated or AI-assisted draft, then requires human approval
+before Facebook publication.
 
-WeatherWatch is an automation platform designed to collect weather information, generate branded graphics, create editable captions, provide a human approval workflow through Telegram, and publish directly to Facebook.
+## Current status
 
-Rather than being a simple weather bot, WeatherWatch is designed as a production-ready system with modular architecture, runtime configuration, deployment tooling, and extensibility for future services under **Project Freedom**.
+Repository-controlled implementation is complete for the pre-runtime candidate.
+The Render service has **not** been created or configured, and no live Render,
+Redis, WINDY/Chromium, AI, Telegram, Facebook, restart, or production
+certification is claimed.
 
----
+WINDY is the sole operational map provider. PANaHON and Meteoblue are historical,
+unregistered modules outside current product scope.
 
-# 🚧 Project Status
+## Canonical flow
 
-**Version**
-
-`v0.9.0`
-
-**Status**
-
-🟡 Production Candidate
-
-Current focus:
-
-* Intelligent Hierarchical Area Routing
-* VPS Production Deployment
-* Production Validation
-
-Target milestone:
-
-🎯 **v1.0.0 — First Production Release**
-
----
-
-# ✨ Features
-
-## Weather Processing
-
-* Multi-provider weather architecture
-* Structured PAGASA forecast parser
-* Provider abstraction layer
-* Modular forecast services
-
-## Image Rendering
-
-* Automated weather graphics
-* Manual image rendering
-* Editable templates
-* Dynamic branding
-* Smart rendering pipeline
-* Config-driven Windy satellite, radar, wind, rain, cloud, and temperature layers
-* Hierarchical affected-area framing with config-driven aliases, parent groups, and fallback
-
-## Caption System
-
-* Editable caption templates
-* Structured forecast integration
-* Config-driven PAGASA weather-system wording and aliases
-* Runtime template reload
-* Template validation
-* Upload guardrails
-
-## Publishing
-
-* Telegram approval workflow
-* Human editorial review
-* Facebook publishing
-* Human-selected image or native Facebook text posts
-* Intent-based `/approve` and `/text_approve` workflows
-* Token recovery
-* State persistence
-
-## Operations
-
-* Local admin dashboard
-* Runtime configuration
-* ZIP release packaging
-* VPS deployment tools
-* Verification scripts
-
----
-
-# 🏗 Architecture
-
-WeatherWatch follows a modular service architecture.
-
-```
-config/
-core/
-services/
-storage/
-templates/
-pipelines/
-plugins/
-scripts/
-deploy/
-docs/
-tests/
-state/
-dist/
+```text
+PAGASA / canonical structured weather facts
+  -> deterministic parsing and framing
+  -> WINDY capture
+  -> templated or bounded AI editorial generation
+  -> factual validation and provenance
+  -> rendering
+  -> pending approval
+  -> authorized Telegram/admin review
+  -> explicit approval
+  -> Facebook publication
 ```
 
-For the complete system architecture, see:
+AI is an editorial writer, never the weather authority. `templated` remains
+usable with no AI credentials, and `automatic` falls back deterministically when
+the configured AI chain is unavailable or invalid.
 
-```
-ARCHITECTURE.md
-```
+## Runtime topology
 
----
+WeatherWatch runs as one long-lived Python service containing Telegram polling,
+APScheduler, the dashboard and `/health`, Facebook reconnect handling, and the
+generation pipeline.
 
-# 🔄 Current Workflow
+- Canonical build: `bash scripts/build_render.sh`
+- Canonical start: `python -m core.service`
+- Health path: `/health`
+- Managed port: platform `PORT`, bound to `0.0.0.0`
+- Local default: `127.0.0.1:8787`
+- Python: `.python-version` (`3.13`)
 
-```
-Weather Provider
+On a public bind, `/admin` and `/admin/current-image` require HTTP Basic with
+`ADMIN_DASHBOARD_SECRET`, mutations require the same secret, and `/health`
+remains public and secret-free.
 
-        │
-        ▼
+The checked-in `render.yaml` is a deterministic deployment definition, not
+evidence that deployment occurred. It installs pinned Python dependencies and
+Playwright Chromium, provisions a persistent runtime root, and leaves secrets
+owner-controlled.
 
-Forecast Parser
+## State and files
 
-        │
-        ▼
+`StateRepository` is the only durable-state abstraction:
 
-Structured Forecast
+- local default: filesystem JSON;
+- managed runtime: Redis-compatible backend through
+  `WEATHERWATCH_STATE_BACKEND=redis` and secret `WEATHERWATCH_REDIS_URL`.
 
-        │
-        ▼
+`WEATHERWATCH_RUNTIME_ROOT` relocates mutable configuration, generated output,
+uploads, backups, and filesystem state beneath an absolute runtime directory.
+On Render, `/var/data/weatherwatch` is backed by the declared disk. Redis keeps
+approval and Facebook-token state durable; the disk keeps operator-edited JSON
+configuration and regenerable artifacts across deploys. Production backup and
+recovery still require live certification.
 
-Caption Templates
+## Operator commands
 
-        │
-        ▼
+Validate the owner-curated editorial corpus without contacting providers:
 
-Image Renderer
-
-        │
-        ▼
-
-Telegram Approval
-
-        │
-        ▼
-
-Human Review
-
-        │
-        ▼
-
-Facebook Publishing
-
-        │
-        ▼
-
-Admin Dashboard
+```bash
+python -m tools.editorial_memory schema
+python -m tools.editorial_memory validate
+python -m tools.editorial_memory validate /path/to/editorial_memory.json
 ```
 
----
+All samples must be real owner-approved precedent. Do not populate production
+memory with synthetic examples.
 
-# 📂 Project Structure
+## Verification
 
-| Folder    | Purpose                       |
-| --------- | ----------------------------- |
-| config    | Runtime configuration         |
-| core      | Application orchestration     |
-| deploy    | Production deployment files   |
-| dist      | Release packages              |
-| docs      | Documentation                 |
-| helpers   | Shared utilities              |
-| output    | Generated outputs             |
-| pipelines | Processing pipelines          |
-| plugins   | Provider extensions           |
-| scripts   | Build & deployment scripts    |
-| services  | Business logic                |
-| state     | Runtime state                 |
-| storage   | Persistence layer             |
-| templates | Caption & rendering templates |
-| tests     | Verification & testing        |
+Hosted convergence executes every `tests/verify_*.py` script, Python
+compilation, and secret/scope checks without depending on Render, WINDY,
+Telegram, Facebook, Redis cloud, OpenAI, or OpenRouter.
 
----
+## Documentation
 
-# 📚 Documentation
-
-| File                   | Description             |
-| ---------------------- | ----------------------- |
-| README.md              | Project overview        |
-| ARCHITECTURE.md        | System architecture     |
-| ROADMAP.md             | Development roadmap     |
-| CHANGELOG.md           | Version history         |
-| VERSION                | Current project version |
-| docs/VPS_DEPLOYMENT.md | VPS deployment guide    |
-| docs/FEATURES_AND_EXTENSION_GUIDE.md | Complete feature and extension reference |
-
----
-
-# ⚙ Deployment
-
-WeatherWatch supports ZIP-based deployment for Ubuntu VPS.
-
-Current deployment includes:
-
-* Ubuntu installer
-* Python virtual environment setup
-* Runtime folder creation
-* systemd service
-* Verification scripts
-* Local dashboard
-* Health endpoint
-
-See:
-
-```
-docs/VPS_DEPLOYMENT.md
-```
-
----
-
-# 💡 Development Philosophy
-
-WeatherWatch is built around a modular architecture.
-
-Core principles:
-
-* Separation of concerns
-* Runtime configurability
-* Production readiness
-* Human-in-the-loop publishing
-* Incremental development
-* Minimal coupling
-* High cohesion
-* Reusable services
-
-Every feature should improve the platform without tightly coupling unrelated systems.
-
----
-
-# 🛣 Roadmap
-
-## Current Sprint
-
-### v0.7.7
-
-* Configurable Image Rendering
-* SmartFit rendering
-* Crop rendering
-* Stretch rendering
-* Runtime image configuration
-* Telegram image commands
-
----
-
-## Next Milestones
-
-### v0.8.x
-
-* Production VPS deployment
-* Production validation
-* Deployment monitoring
-* Operational hardening
-
----
-
-### v1.0.0
-
-**First Production Release**
-
-Requirements:
-
-* Stable VPS deployment
-* Telegram validation
-* Facebook publishing validation
-* Dashboard validation
-* Recovery testing
-* Backup verification
-* Production monitoring
-
----
-
-# 🔮 Future
-
-Planned platform expansion:
-
-* Multi-page deployment
-* WINDY-only map operations; any future provider expansion requires a separate approved project
-* REST API
-* Project Freedom Dashboard
-* Broadcast Stack integration
-* Automation workers
-* Plugin ecosystem
-* Multi-service orchestration
-
----
-
-# 🚀 Continue Development
-
-WeatherWatch is under active development.
-
-Current milestone:
-
-**v0.7.7 — Configurable Image Rendering**
-
-Upcoming milestones:
-
-* VPS Production Deployment
-* Production Validation
-* v1.0.0 First Production Release
-
-Long-term roadmap:
-
-WeatherWatch → Broadcast Stack → Project Freedom Platform
-
-Development continues in:
-
-```
-ROADMAP.md
-```
+- [Architecture](ARCHITECTURE.md)
+- [Roadmap](ROADMAP.md)
+- [Render runtime runbook](docs/RENDER_RUNTIME.md)
+- [Deployment verification boundary](docs/DEPLOYMENT_VERIFICATION.md)
+- [AI/editorial operations](docs/AI_EDITORIAL_OPERATIONS.md)
+- [Feature and extension guide](docs/FEATURES_AND_EXTENSION_GUIDE.md)
+- [Existing VPS deployment](docs/VPS_DEPLOYMENT.md)
