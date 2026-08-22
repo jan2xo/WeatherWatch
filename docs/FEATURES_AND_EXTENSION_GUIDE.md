@@ -276,6 +276,8 @@ Current capabilities:
 
 - resolves the URL that Playwright will open;
 - applies intelligent framing to WINDY;
+- waits for WINDY's map container and a rendered map layer before capture;
+- records bounded attempt count and safe success/failure metadata;
 - delegates the actual screenshot to `helpers/browser.py`.
 
 WINDY framing rewrites:
@@ -317,17 +319,25 @@ It:
 - launches headless Chromium;
 - creates a fixed 1080x1350 viewport;
 - opens the resolved URL;
-- waits for DOM content and then 10 seconds;
+- waits for deterministic page/provider readiness with a bounded timeout;
+- retries transient browser, navigation, readiness, screenshot, and artifact
+  failures once;
 - saves a full viewport screenshot;
-- closes the browser.
+- validates that the artifact is a readable, non-empty image with sensible
+  dimensions;
+- removes failed partial artifacts and closes page, context, and browser on
+  every attempt.
+
+The focused verification uses synthetic browser boundaries and generated image
+artifacts. Live WINDY, managed-runtime Chromium, and production capture remain
+runtime certification work; repository verification does not claim them.
 
 Safe extensions:
 
 - configurable provider wait times;
 - provider-specific readiness selectors;
 - cookie/banner handling;
-- provider interaction callbacks;
-- capture retries.
+- provider interaction callbacks.
 
 Keep provider policy outside this generic helper when possible.
 

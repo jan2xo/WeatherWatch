@@ -1,6 +1,28 @@
 from urllib.parse import urlsplit, urlunsplit
 
-from helpers.browser import capture_page
+from helpers.browser import BrowserCaptureError, capture_page
+
+
+WINDY_READINESS_EXPRESSION = """() => {
+    if (document.readyState !== 'complete') return false;
+    const container = document.querySelector('#map-container');
+    const map = document.querySelector('#leaflet-map');
+    if (!container || !map) return false;
+    const containerRect = container.getBoundingClientRect();
+    const mapRect = map.getBoundingClientRect();
+    if (containerRect.width <= 0 || containerRect.height <= 0 ||
+        mapRect.width <= 0 || mapRect.height <= 0) return false;
+    const renderedLayer = map.querySelector(
+        'canvas, img.leaflet-tile-loaded, .leaflet-tile-loaded'
+    );
+    if (!renderedLayer) return false;
+    const layerRect = renderedLayer.getBoundingClientRect();
+    return layerRect.width > 0 && layerRect.height > 0;
+}"""
+
+
+def wait_for_windy_ready(page, timeout_ms):
+    page.wait_for_function(WINDY_READINESS_EXPRESSION, timeout=timeout_ms)
 
 
 def apply_windy_framing(url, framing_decision):
@@ -65,7 +87,23 @@ def resolve_capture_url(job):
 
 
 def run_capture_job(job):
-    return capture_page(
-        url=resolve_capture_url(job),
-        output_path=job["raw_output_path"],
-    )
+    readiness_callback = None
+    if (job.get("provider") or "").lower() == "windy":
+        readiness_callback = wait_for_windy_ready
+
+    try:
+        attempts = capture_page(
+            url=resolve_capture_url(job),
+            output_path=job["raw_output_path"],
+            readiness_callback=readiness_callback,
+        )
+    except BrowserCaptureError as error:
+        job["capture_status"] = "failed"
+        job["capture_attempts"] = error.attempts
+        job["capture_failure_category"] = error.category
+        raise
+
+    job["capture_status"] = "success"
+    job["capture_attempts"] = attempts
+    job.pop("capture_failure_category", None)
+    return attempts
